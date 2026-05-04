@@ -11,6 +11,18 @@ description: |
   - 用户说"帮我分析一下XX行业的内容方向"
   - 消息包含 "grid25搜索选题："（用户点了宫格里的「帮我找选题」按钮）
   - 用户点击了宫格里的「换个行业」按钮（触发 sendPrompt）
+metadata:
+  version: 1.1.0
+  author: "十里&FRIDAY"
+  created: "2026-03-13"
+  updated: "2026-05-04"
+  changelog:
+    - version: 1.1.0
+      date: "2026-05-04"
+      notes: "widget.min.js 直接 inline 到渲染产物，去掉 CDN 依赖；render.py 删除 CDN_URL 参数；离线自包含"
+    - version: 1.0.0
+      date: "2026-03-13"
+      notes: "初版：三层宫格抽签 + 搜索真实选题"
 ---
 
 # grid25 — 25宫格选题助手
@@ -87,9 +99,10 @@ python /path/to/skill/scripts/render.py grid \
   '["词1","词2","词3","词4","词5","词6","词7","词8","词9","词10","词11","词12","词13","词14","词15","词16"]'
 ```
 
-脚本读取 `references/widget-template.html`，替换三个占位符，stdout 即为完整 widget_code，直接传入 `visualize:show_widget`。
+脚本读取 `references/widget-template.html`，把行业名、两组关键词、以及 `assets/widget.min.js`（直接 inline，**不走任何 CDN/网络请求**）拼成完整 widget_code，stdout 即输出，直接传入 `visualize:show_widget`。
 
 > **skill 安装路径**：通常在 `/mnt/skills/user/grid25/`，用 `bash_tool` 执行前先确认路径。
+> **离线自包含**：渲染产物不依赖外部资源，所有 JS/CSS 已打包，可直接复制到任何环境运行。
 
 ---
 
