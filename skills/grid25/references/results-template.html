@@ -1,0 +1,69 @@
+<style>
+*{box-sizing:border-box}
+.combo{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:1.25rem}
+.tag{display:inline-flex;align-items:center;padding:3px 12px;border-radius:20px;font-size:13px;background:var(--color-background-secondary);color:var(--color-text-secondary);border:0.5px solid var(--color-border-secondary)}
+.tch{background:var(--color-background-primary);color:var(--color-text-primary);border:0.5px solid var(--color-border-primary);font-weight:500}
+.plus{font-size:13px;color:var(--color-text-tertiary)}
+.cards{display:flex;flex-direction:column;gap:8px}
+.card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px 16px;cursor:default;transition:border-color .15s}
+.card:hover{border-color:var(--color-border-secondary)}
+.card-num{font-size:11px;color:var(--color-text-tertiary);margin-bottom:4px}
+.card-title{font-size:14px;font-weight:500;color:var(--color-text-primary);line-height:1.5;margin-bottom:8px}
+.card-meta{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.plat{font-size:11px;color:var(--color-text-secondary);background:var(--color-background-secondary);padding:2px 8px;border-radius:4px;border:0.5px solid var(--color-border-tertiary)}
+.tip{font-size:11px;color:var(--color-text-tertiary);flex:1;text-align:right}
+.copybtn{font-size:11px;padding:2px 8px;cursor:pointer;border-radius:4px;margin-left:6px;flex-shrink:0}
+.footer{display:flex;gap:8px;margin-top:14px}
+</style>
+
+<div style="max-width:540px;margin:0 auto;padding:1.5rem 1rem;font-family:var(--font-sans)">
+  <div class="combo">
+    <span class="tag tch">{{INDUSTRY}}</span>
+    <span class="plus">+</span>
+    <span class="tag">{{W2}}</span>
+    <span class="plus">+</span>
+    <span class="tag">{{W3}}</span>
+  </div>
+  <div class="cards" id="cards"></div>
+  <div class="footer">
+    <button onclick="sendPrompt('grid25搜索选题：{{INDUSTRY}} + {{W2}} + {{W3}}')" style="flex:1">换一批 ↗</button>
+    <button onclick="copyAll()" style="flex:1">复制全部标题</button>
+    <button onclick="sendPrompt('换个行业，重新生成 25 宫格选题法')" style="flex:1">换个行业 ↗</button>
+  </div>
+</div>
+
+<script>
+const results = {{RESULTS_JSON}};
+
+function buildCards(){
+  const c=document.getElementById('cards');
+  results.forEach((r,i)=>{
+    const d=document.createElement('div');d.className='card';
+    d.innerHTML=`
+      <div class="card-num">${String(i+1).padStart(2,'0')}</div>
+      <div class="card-title">${r.title}</div>
+      <div class="card-meta">
+        <span class="plat">${r.platform}</span>
+        <span class="tip">${r.tip||''}</span>
+        <button class="copybtn" onclick="copyOne(${i})">复制</button>
+      </div>`;
+    c.appendChild(d);
+  });
+}
+buildCards();
+
+function copyOne(i){
+  navigator.clipboard.writeText(results[i].title).then(()=>{
+    const btns=document.querySelectorAll('.copybtn');
+    btns[i].textContent='已复制';
+    setTimeout(()=>btns[i].textContent='复制',1800);
+  });
+}
+function copyAll(){
+  const text=results.map((r,i)=>`${i+1}. ${r.title}`).join('\n');
+  navigator.clipboard.writeText(text).then(()=>{
+    const btn=document.querySelector('.footer button:nth-child(2)');
+    btn.textContent='已复制';setTimeout(()=>btn.textContent='复制全部标题',1800);
+  });
+}
+</script>
