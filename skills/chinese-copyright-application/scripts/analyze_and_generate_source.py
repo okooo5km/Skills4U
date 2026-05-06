@@ -4,8 +4,9 @@
 
 功能：
   1. 分析项目结构，检测项目类型（微信小程序/Web/Node.js 等）
-  2. 统计源代码有效行数
-  3. 生成源程序 LaTeX 文件（前30页 + 后30页 = 60页）
+  2. 识别遗留代码候选项（mockData / util.js 模板 / logs 等），列出供裁决
+  3. 统计源代码有效行数
+  4. 生成源程序 LaTeX 文件（前30页 + 后30页 = 60页）
 
 用法：
   python3 analyze_and_generate_source.py <项目路径> \\
@@ -13,16 +14,20 @@
     --version "V1.0" \\
     --owner "著作权人名称" \\
     --date "2025年4月30日" \\
-    --output <输出目录>
+    --output <输出目录> \\
+    [--exclude-pattern "utils/mockData.js" --exclude-pattern "pages/logs/**"] \\
+    [--front-lines 1490 --back-lines 1498]
 
 输出：
   - 控制台打印项目分析报告（项目类型、技术栈、文件统计、总行数）
   - 生成 <软件全称>源程序.tex 文件
+  - project_analysis.json，含 legacy_candidates 字段
 """
 
 import os
 import sys
 import json
+import fnmatch
 import argparse
 from pathlib import Path
 from collections import defaultdict
@@ -79,6 +84,87 @@ EXCLUDE_FILES = {
     'package-lock.json', 'yarn.lock', 'pnpm-lock.yaml',
     '.DS_Store', 'Thumbs.db',
 }
+
+# 遗留代码候选模式（识别但不自动排除，由 Claude+用户裁决）
+LEGACY_PATTERNS = [
+    # (模式, 描述, 触发条件 lambda(rel_path, abs_path) -> bool 或 None=仅按文件名匹配)
+    ('mockData*.js', 'Mock 假数据', None),
+    ('mockData*.ts', 'Mock 假数据', None),
+    ('mock*.js', 'Mock 数据/工具', None),
+    ('fakeData*.js', '假数据', None),
+    ('pages/logs/**', '微信小程序默认模板日志页', None),
+    ('miniprogram/pages/logs/**', '微信小程序默认模板日志页', None),
+    # util.js 仅当 < 1KB 或仅含模板函数时视为遗留
+    ('util.js', '微信小程序默认模板（仅 formatTime 等样板）',
+     lambda rel, abs: abs.stat().st_size < 1024
+     or _is_template_util(abs)),
+    ('utils/util.js', '微信小程序默认模板（仅 formatTime 等样板）',
+     lambda rel, abs: abs.stat().st_size < 1024
+     or _is_template_util(abs)),
+]
+
+
+def _is_template_util(abs_path: Path) -> bool:
+    """判断 util.js 是否为微信小程序默认模板。
+    默认模板特征：仅含 formatTime / formatNumber 等样板函数，无业务代码。
+    """
+    try:
+        text = abs_path.read_text(encoding='utf-8', errors='ignore')
+    except Exception:
+        return False
+    # 默认模板的典型 API 是 formatTime + formatNumber，且 module.exports 只导出这两个
+    has_format_time = 'formatTime' in text
+    has_format_number = 'formatNumber' in text
+    # 没有典型业务关键字（API 调用、wx. 调用、import 业务模块）
+    no_business = (
+        'wx.request' not in text
+        and 'wx.login' not in text
+        and 'require(' not in text.replace('require(\'./formatNumber\')', '')
+    )
+    return has_format_time and has_format_number and no_business
+
+
+def detect_legacy_candidates(code_files: list, project_path: Path) -> list:
+    """扫描遗留代码候选项，返回 [{path, reason, size}]"""
+    candidates = []
+    seen = set()
+    for rel, abspath in code_files:
+        rel_str = str(rel)
+        if rel_str in seen:
+            continue
+        for pattern, desc, cond in LEGACY_PATTERNS:
+            if fnmatch.fnmatch(rel_str, pattern) or fnmatch.fnmatch(rel.name, pattern):
+                if cond is None or cond(rel, abspath):
+                    try:
+                        size = abspath.stat().st_size
+                    except Exception:
+                        size = 0
+                    candidates.append({
+                        'path': rel_str,
+                        'reason': desc,
+                        'matched_pattern': pattern,
+                        'size_bytes': size,
+                    })
+                    seen.add(rel_str)
+                    break
+    return candidates
+
+
+def filter_by_exclude_patterns(code_files: list, exclude_patterns: list) -> list:
+    """按用户指定的 glob 模式剔除文件"""
+    if not exclude_patterns:
+        return code_files
+    filtered = []
+    for rel, abspath in code_files:
+        rel_str = str(rel)
+        excluded = False
+        for pat in exclude_patterns:
+            if fnmatch.fnmatch(rel_str, pat) or fnmatch.fnmatch(rel.name, pat):
+                excluded = True
+                break
+        if not excluded:
+            filtered.append((rel, abspath))
+    return filtered
 
 # 文件优先级（数字越小越优先）
 PRIORITY_RULES = [
@@ -254,6 +340,8 @@ def generate_source_tex(
     owner: str,
     date: str,
     output_path: Path,
+    front_target: int = FRONT_TARGET,
+    back_target: int = BACK_TARGET,
 ):
     """
     生成源程序 .tex 文件（前30页 + 后30页 = 60页）
@@ -264,9 +352,8 @@ def generate_source_tex(
       - 后30页首页因分隔标题减少约2行 → 48行
       - 前30页目标：1490行，后30页目标：1498行，合计2988行
       - 代码不足时直接使用全部代码，不强凑60页
+      - 编译后若 PDF 不是 60 页，调整 front_target / back_target 微调（每次 ±2~5 行试探）
     """
-    front_target = FRONT_TARGET  # 1490
-    back_target = BACK_TARGET    # 1498
 
     # 按优先级排序
     sorted_files = sorted(code_files, key=lambda x: get_file_priority(x[0]))
@@ -423,6 +510,12 @@ def main():
     parser.add_argument('--owner', required=True, help='著作权人名称')
     parser.add_argument('--date', required=True, help='生成日期（如：2025年4月30日）')
     parser.add_argument('--output', default='.', help='输出目录（默认当前目录）')
+    parser.add_argument('--exclude-pattern', action='append', default=[],
+                        help='额外排除的文件 glob 模式，可重复传入。例：--exclude-pattern "utils/mockData.js" --exclude-pattern "pages/logs/**"')
+    parser.add_argument('--front-lines', type=int, default=FRONT_TARGET,
+                        help=f'前30页目标代码行数（默认 {FRONT_TARGET}）。编译后若 PDF 不是 60 页，调整此值微调')
+    parser.add_argument('--back-lines', type=int, default=BACK_TARGET,
+                        help=f'后30页目标代码行数（默认 {BACK_TARGET}）。编译后若 PDF 不是 60 页，调整此值微调')
 
     args = parser.parse_args()
     project_path = Path(args.project_path).resolve()
@@ -446,6 +539,22 @@ def main():
 
     # ── 2. 代码统计 ──
     code_files = collect_code_files(project_path)
+
+    # 识别遗留代码候选项（在过滤前扫描，让用户看到完整清单）
+    legacy_candidates = detect_legacy_candidates(code_files, project_path)
+    if legacy_candidates:
+        print('\n⚠️  发现以下遗留代码候选项（mockData / 默认模板 / 日志页等）：')
+        for c in legacy_candidates:
+            print(f'  - {c["path"]}  ({c["reason"]}, {c["size_bytes"]}B)')
+        print('  → 已通过 legacy_candidates 字段输出到 project_analysis.json')
+        print('  → 如需排除，请用 --exclude-pattern "<glob>" 重新运行本脚本')
+
+    # 应用用户指定的排除模式
+    if args.exclude_pattern:
+        before = len(code_files)
+        code_files = filter_by_exclude_patterns(code_files, args.exclude_pattern)
+        print(f'\n按用户指定的排除模式 {args.exclude_pattern} 剔除了 {before - len(code_files)} 个文件')
+
     print(f'\n代码文件数：{len(code_files)}')
 
     ext_stats = defaultdict(lambda: {'files': 0, 'lines': 0})
@@ -481,11 +590,17 @@ def main():
         owner=args.owner,
         date=args.date,
         output_path=output_path,
+        front_target=args.front_lines,
+        back_target=args.back_lines,
     )
 
     print(f'\n源程序文档已生成：{output_path}')
-    print(f'  前30页：第 1 - {front_end} 行')
-    print(f'  后30页：第 {back_start} - {total_effective} 行')
+    print(f'  前30页：第 1 - {front_end} 行  （目标 {args.front_lines} 行）')
+    print(f'  后30页：第 {back_start} - {total_effective} 行  （目标 {args.back_lines} 行）')
+    estimated_pages = round((args.front_lines + args.back_lines) / LINES_PER_FULL_PAGE)
+    print(f'  估算页数（按 {LINES_PER_FULL_PAGE} 行/页）：约 {estimated_pages} 页')
+    print('  → 编译后请用 `pdfinfo <软件全称>源程序.pdf | grep Pages` 核对是否正好 60 页')
+    print('  → 如不是 60 页，调整 --front-lines / --back-lines 重新生成')
 
     # ── 4. 输出 JSON 供 Claude 使用 ──
     report = {
@@ -497,6 +612,10 @@ def main():
         'total_lines_effective': total_effective,
         'source_tex': str(output_path),
         'ext_stats': {k: v for k, v in ext_stats.items()},
+        'legacy_candidates': legacy_candidates,
+        'exclude_patterns_applied': args.exclude_pattern,
+        'front_target_lines': args.front_lines,
+        'back_target_lines': args.back_lines,
     }
     report_path = output_dir / 'project_analysis.json'
     with open(report_path, 'w', encoding='utf-8') as f:

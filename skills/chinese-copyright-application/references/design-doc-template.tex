@@ -150,13 +150,48 @@
 \section{详细设计}
 % =================================================================
 
-% --- 为每个核心模块重复以下模式 ---
+% ⚠️ 强制规则（避免补正）：
+%   1. 每个在「源代码鉴别材料（前30页+后30页）」中出现过的模块/目录，
+%      在本节都必须有对应的 \subsection；反之，本节出现的每个模块，
+%      都必须能在源程序文档里看到对应代码。审查员会做双向核对。
+%   2. 每个 \subsection 标题必须与项目实际目录或文件名对应（如
+%      pages/index、utils/api.js），不要起架空的中文名。
+%   3. 每个模块按下面的 6 段结构展开，缺段会被打回。
 
-\subsection{{{模块名称}}}
+% --- 为每个核心模块重复以下 6 段结构 ---
 
-\subsubsection{模块功能}
+\subsection{{{模块名称（与源代码目录/文件对应）}}}
 
-{{模块功能描述}}
+\subsubsection{模块职责}
+
+{{该模块在系统中承担的核心职责，一句话定位 + 1--2 句展开说明}}
+
+\subsubsection{输入与输出}
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{输入}：{{用户操作 / 上游模块传入的数据 / 跳转参数 / 接口入参}}。
+  \item \textbf{输出}：{{渲染结果 / 下游模块消费的数据 / 跳转目标 / 接口返回}}。
+\end{itemize}
+
+\subsubsection{关键算法与处理逻辑}
+
+{{核心算法或业务逻辑描述，例如距离计算、日期匹配、过滤排序、状态转换等。
+若涉及公式或判定规则，用列表或简短伪代码展示}}
+
+\subsubsection{状态与缓存管理}
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{本地状态}：{{页面/组件 data 字段、内存变量}}。
+  \item \textbf{持久化}：{{localStorage / 数据库 / 全局 globalData 等}}。
+  \item \textbf{失效与刷新策略}：{{何时清空、何时同步}}。
+\end{itemize}
+
+\subsubsection{与其他模块的依赖关系}
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{依赖}：{{本模块调用了哪些上游模块/工具/接口}}。
+  \item \textbf{被依赖}：{{哪些下游模块依赖本模块的输出}}。
+\end{itemize}
 
 \subsubsection{处理流程}
 
