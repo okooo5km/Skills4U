@@ -1,13 +1,30 @@
 # Orchard Command Reference
 
-Orchard version inspected: `0.5.1`.
+Orchard version inspected: `0.6.0`.
 
-All domains support `--help`. Most leaf commands support `--json`.
+All domains support `--help`. Most leaf commands support `--json`. Examples below use `orchard` as shorthand; when `SKILL.md` has resolved `ORCHARD_BIN`, call `"$ORCHARD_BIN"` instead.
+
+## Contents
+
+- Help And Shell Pitfalls
+- Top Level
+- Calendar
+- Reminders
+- Clock
+- Mail
+- Contacts
+- Notes
+- Music
+- Weather
+- Messages
+- Location
+- Shortcuts
+- Parsing Pattern
 
 ## Help And Shell Pitfalls
 
 - Use `orchard <domain> <command> --help` for leaf commands, e.g. `orchard calendar info --help`.
-- Do not use `orchard help <domain> <command>` for leaf commands in 0.5.1; it falls back to top-level help.
+- Do not use `orchard help <domain> <command>` for leaf commands in 0.6.0; it falls back to top-level help.
 - In zsh, a scalar containing spaces is not split into multiple argv items. This is wrong:
 
 ```bash
@@ -39,6 +56,7 @@ orchard help music
 orchard help weather
 orchard help messages
 orchard help location
+orchard help shortcuts
 ```
 
 Subcommands:
@@ -53,6 +71,7 @@ Subcommands:
 - `weather`: Weather information
 - `messages`: Apple Messages management
 - `location`: Location and maps services
+- `shortcuts`: Apple Shortcuts discovery and execution
 
 ## Calendar
 
@@ -137,7 +156,7 @@ Read types: `search`, `content`, `unread`, `list`, `thread`.
 
 Mail list records include fields such as `id`, `sender`, `sender_address`, `subject`, `date_sent`, `mailbox`, `is_read`, `is_flagged`, `has_attachments`, and often `summary`.
 
-Important limitation in 0.5.1: `mail read` has no documented date range or offset flag. Filter returned `date_sent` locally and increase `--limit` when needed.
+Important limitation in 0.6.0: `mail read` has no documented date range or offset flag. Filter returned `date_sent` locally and increase `--limit` when needed.
 
 If returned messages equal the requested `--limit`, report that the time-window scan may be truncated. Do not claim complete coverage unless the fetched set extends older than the window start.
 
@@ -209,7 +228,7 @@ orchard weather get --location Jinan --granularity daily --start-date 2026-06-03
 orchard weather get --lat 36.6521 --lon 117.1201 --granularity hourly --start-date 2026-06-03T00:00:00+08:00 --end-date 2026-06-03T23:59:59+08:00 --json
 ```
 
-Granularity values: `daily`, `hourly`. There is no `--days` flag in 0.5.1.
+Granularity values: `daily`, `hourly`. There is no `--days` flag in 0.6.0.
 
 Weather records include condition, symbol, temperature high/low, precipitation chance/amount, UV index, wind, sun, moon phase, and location.
 
@@ -229,7 +248,7 @@ orchard messages scheduled cancel --id SCHEDULED_MESSAGE_ID --json
 
 Read types: `chats`, `messages`.
 
-In 0.5.1, `messages read --type chats` requires `--query` in practice even though help marks it optional.
+In 0.6.0, `messages read --type chats` requires `--query` in practice even though help marks it optional.
 
 Confirm before sending unless the user has provided exact text and requested send.
 
@@ -254,6 +273,29 @@ Geocode directions: `address_to_coords`, `coords_to_address`.
 
 Route transports: `auto`, `walk`, `transit`.
 
+## Shortcuts
+
+```bash
+orchard shortcuts list --summary --json
+orchard shortcuts list --folder-name "Folder" --query "invoice" --json
+orchard shortcuts folders --json
+orchard shortcuts open --name "Shortcut name" --json
+orchard shortcuts open --id SHORTCUT_ID --json
+
+orchard shortcuts run \
+  --name "Shortcut name" \
+  --input "Text input" \
+  --output-path /tmp/shortcut-output.txt \
+  --output-type public.plain-text \
+  --execution-mode auto \
+  --timeout-seconds 120 \
+  --confirm \
+  --reason "User requested this exact shortcut run" \
+  --json
+```
+
+Run supports `--name` or `--id`; `--input` or `--input-path`; optional `--output-path`, `--output-type`, `--execution-mode`, and `--timeout-seconds`. `--confirm` and `--reason` are required by design.
+
 ## Parsing Pattern
 
 Use this shape when a task needs robust shell-side parsing:
@@ -264,4 +306,4 @@ orchard calendar info --type events --from 2026-06-03T00:00:00+08:00 --to 2026-0
   | python3 -c 'import json,re,sys; s=sys.stdin.read(); m=re.search(r"([\\[{])", s); payload=s[m.start():] if m else s; print(json.dumps(json.loads(payload), ensure_ascii=False, indent=2))'
 ```
 
-If `output` is plain text, summarize it directly. If it is JSON text prefixed by prose such as `Found 2 events:\n{...}`, strip everything before the first `{` or `[` before parsing.
+If `output` is already an object/array, use it directly. If `output` is plain text, summarize it directly. If it is JSON text prefixed by prose such as `Found 2 events:\n{...}`, strip everything before the first `{` or `[` before parsing.
