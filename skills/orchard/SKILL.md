@@ -2,8 +2,8 @@
 name: orchard
 description: "Use the local Orchard CLI to interact with macOS Apple apps and services from Codex: Calendar, Reminders, Clock, Mail, Contacts, Notes, Music, Weather, Messages, Location/Maps, and Apple Shortcuts. Resolves either a globally installed `orchard` command or the bundled `Orchard.app/Contents/MacOS/orchard-cli`. Use when a task asks to read or manage local calendar events, reminders, Apple Mail, contacts, notes, iMessage/SMS, Apple Music playback/library, weather, current time/timezones, geocoding, routes, current location, or local Shortcuts."
 metadata:
-  version: "0.2.0"
-  updated: "2026-06-18"
+  version: "0.6.0"
+  updated: "2026-07-15"
   tested_with:
     orchard_app: "0.6.0 (15)"
     orchard_cli: "0.6.0"
@@ -43,9 +43,10 @@ For the full command matrix, read `references/commands.md`.
 ## Known Pitfalls
 
 - Use `"$ORCHARD_BIN" <domain> <command> ...`, not a hard-coded `orchard`, unless `command -v orchard` was the selected route.
-- Check leaf-command help with `"$ORCHARD_BIN" <domain> <command> --help`, not `"$ORCHARD_BIN" help <domain> <command>`. The latter falls back to top-level help in 0.6.0.
+- Check leaf-command help with `"$ORCHARD_BIN" <domain> <command> --help` or `"$ORCHARD_BIN" help <domain> <command>`; both print the same output.
 - In zsh loops, never pass a multi-word command through a scalar like `"$ORCHARD_BIN" $cmd`; zsh keeps it as one argument. Use an array, or `eval` only for trusted static command strings.
-- `orchard mail read` in 0.6.0 has no documented `--from`, `--to`, or `--offset`. For a time window, read enough recent messages with `--limit`, filter `date_sent` locally, and state possible truncation when results hit the limit.
+- Negative numeric values must use the equals form: `--lng1=-122.4194`, `--lon=-117.1201`. With a space (`--lng1 -122.4194`) the parser reads the value as a new flag and fails with a usage error; shell quoting does not help because quotes never reach argv.
+- `orchard mail read` supports `--date-from`/`--date-to` (ISO 8601) and `--offset` for time windows and pagination. If the installed CLI rejects these flags (older builds), fall back to `--limit` plus local `date_sent` filtering and state possible truncation when results hit the limit.
 - Treat help output and the installed CLI as source of truth. If this skill and CLI disagree, run `"$ORCHARD_BIN" <domain> <command> --help` and adapt.
 
 ## Core Rules
@@ -76,10 +77,11 @@ When summarizing reminders, filter stale/completed/noisy records yourself if Orc
 ```bash
 "$ORCHARD_BIN" mail refresh --json
 "$ORCHARD_BIN" mail read --type list --limit 100 --json
+"$ORCHARD_BIN" mail read --type list --date-from 2026-07-01T00:00:00+08:00 --date-to 2026-07-15T00:00:00+08:00 --limit 100 --json
 "$ORCHARD_BIN" mail read --type content --message-id MESSAGE_ID --json
 ```
 
-Orchard 0.6.0 mail listing has `--limit`, `--mailbox`, and `--account`, but no documented `--from`, `--to`, or `--offset`. To cover a time window, request enough recent messages and filter `date_sent` locally. If the result count equals the limit, say the scan may be truncated instead of pretending coverage is complete.
+Mail listing supports `--limit`, `--mailbox`, `--account`, `--offset` for pagination, and `--date-from`/`--date-to` (ISO 8601) for time windows. If the result count equals the limit, page with `--offset` or say the scan may be truncated instead of pretending coverage is complete. On older builds that reject the date/offset flags, fall back to `--limit` plus local `date_sent` filtering.
 
 Only fetch full email bodies for likely important mail: accounts, billing, support, customer, legal, platform review, security, collaboration, or anything the user asked to inspect.
 

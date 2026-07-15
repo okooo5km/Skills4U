@@ -23,8 +23,8 @@ All domains support `--help`. Most leaf commands support `--json`. Examples belo
 
 ## Help And Shell Pitfalls
 
-- Use `orchard <domain> <command> --help` for leaf commands, e.g. `orchard calendar info --help`.
-- Do not use `orchard help <domain> <command>` for leaf commands in 0.6.0; it falls back to top-level help.
+- Use `orchard <domain> <command> --help` for leaf commands, e.g. `orchard calendar info --help`. `orchard help <domain> <command>` prints the same output.
+- Negative numeric values must use the equals form, e.g. `--lng1=-122.4194`, `--lon=-117.1201`. With a space (`--lng1 -122.4194`) the parser treats the value as a new flag and exits with a usage error. Shell quoting does not help; quotes never reach argv.
 - In zsh, a scalar containing spaces is not split into multiple argv items. This is wrong:
 
 ```bash
@@ -77,6 +77,7 @@ Subcommands:
 
 ```bash
 orchard calendar info --type calendars --json
+orchard calendar info --type calendars --calendar-type birthday --json
 orchard calendar info --type events --from 2026-06-03T00:00:00+08:00 --to 2026-06-04T00:00:00+08:00 --json
 
 orchard calendar create \
@@ -91,9 +92,16 @@ orchard calendar create \
 
 orchard calendar create --title "All-day" --start 2026-06-03T00:00:00+08:00 --end 2026-06-03T23:59:59+08:00 --all-day --json
 orchard calendar update --event-id EVENT_ID --title "New title" --start 2026-06-03T16:00:00+08:00 --end 2026-06-03T17:00:00+08:00 --json
+orchard calendar update --event-id EVENT_ID --calendar-id CALENDAR_ID --json
+orchard calendar update --event-id EVENT_ID --url "https://example.com/meeting" --alarms 15,60 --json
+orchard calendar update --event-id EVENT_ID --url "" --alarms "" --json
 orchard calendar delete --event-id EVENT_ID --json
 orchard calendar convert --date 2026-06-03T00:00:00+08:00 --calendar chinese --json
 ```
+
+Update extras: `--calendar-id` moves the event to another calendar; `--url ""` clears the URL; `--alarms ""` clears all alarms.
+
+`calendar info --calendar-type` filters `--type calendars` output: `event` (default) or `birthday`.
 
 Calendar convert targets: `gregorian`, `buddhist`, `chinese`, `hebrew`, `islamic`, `islamicCivil`, `indian`, `japanese`, `persian`, `coptic`, `ethiopicAmeteMihret`, `ethiopicAmeteAlem`, `iso8601`.
 
@@ -105,8 +113,11 @@ orchard reminder info --type reminders --status incomplete --json
 orchard reminder info --type reminders --list-id LIST_ID --status all --json
 
 orchard reminder create --title "Task" --list-id LIST_ID --due-date 2026-06-03T18:00:00+08:00 --priority 5 --notes "Context" --json
+orchard reminder create --title "Silent task" --due-date 2026-06-03T18:00:00+08:00 --enable-alarm false --json
 orchard reminder update --reminder-id REMINDER_ID --completed true --json
 orchard reminder update --reminder-id REMINDER_ID --title "New task" --due-date 2026-06-04T09:00:00+08:00 --priority 1 --notes "New notes" --json
+orchard reminder update --reminder-id REMINDER_ID --list-id LIST_ID --json
+orchard reminder update --reminder-id REMINDER_ID --enable-alarm false --json
 orchard reminder delete --reminder-id REMINDER_ID --json
 
 orchard reminder list-create --name "Project" --color "#3B82F6" --json
@@ -116,11 +127,14 @@ orchard reminder list-delete --list-id LIST_ID --json
 
 Status values: `all`, `incomplete`, `completed`.
 
+`--enable-alarm true|false` controls the due-date notification (default true). On update, omit it to leave the existing alarm untouched; passing it without a new `--due-date` toggles the alarm on the current due date. `reminder update --list-id` moves the reminder to another list.
+
 ## Clock
 
 ```bash
 orchard clock time --json
 orchard clock time --timezone Asia/Shanghai --json
+orchard clock time --calendar-identifier chinese --json
 orchard clock time --timezone America/Los_Angeles --to-timezone Asia/Shanghai --time 2026-06-03T09:00:00-07:00 --json
 
 orchard clock util --action list_timezones --region Asia --json
@@ -128,6 +142,8 @@ orchard clock util --action difference --time1 2026-06-03T09:00:00+08:00 --time2
 ```
 
 Utility actions: `list_timezones`, `difference`.
+
+`clock time --calendar-identifier` formats the current time in another calendar system (same targets as `calendar convert`, default `gregorian`). It only applies when `--to-timezone` is not set; the timezone-conversion path ignores it.
 
 ## Mail
 
@@ -137,9 +153,12 @@ orchard mail refresh --json
 orchard mail refresh --account "Account name" --json
 
 orchard mail read --type list --limit 100 --json
+orchard mail read --type list --limit 100 --offset 100 --json
+orchard mail read --type list --date-from 2026-07-01T00:00:00+08:00 --date-to 2026-07-15T00:00:00+08:00 --json
 orchard mail read --type unread --limit 50 --json
 orchard mail read --type search --query "from:apple subject:receipt" --limit 20 --json
 orchard mail read --type content --message-id MESSAGE_ID --json
+orchard mail read --type content --message-id MESSAGE_ID --max-body-length 2000 --json
 orchard mail read --type thread --message-id MESSAGE_ID --json
 
 orchard mail send --to "a@example.com,b@example.com" --cc "c@example.com" --from "me@example.com" --subject "Subject" --content "Body" --json
@@ -147,6 +166,7 @@ orchard mail send --to "a@example.com" --subject "Subject" --content "Body" --sc
 
 orchard mail mark --message-ids "ID1,ID2" --status read --json
 orchard mail mark --message-ids "ID1,ID2" --status unread --json
+orchard mail mark --mailbox INBOX --account "Account name" --status read --json
 
 orchard mail scheduled list --json
 orchard mail scheduled cancel --id SCHEDULED_EMAIL_ID --json
@@ -156,9 +176,11 @@ Read types: `search`, `content`, `unread`, `list`, `thread`.
 
 Mail list records include fields such as `id`, `sender`, `sender_address`, `subject`, `date_sent`, `mailbox`, `is_read`, `is_flagged`, `has_attachments`, and often `summary`.
 
-Important limitation in 0.6.0: `mail read` has no documented date range or offset flag. Filter returned `date_sent` locally and increase `--limit` when needed.
+`mail read` supports `--offset` for pagination, `--date-from`/`--date-to` (ISO 8601; use local timezone offsets, not `Z`, for accurate day boundaries) for `search`/`list`/`unread`, and `--max-body-length` for `content`/`thread`. On older builds that reject these flags, fall back to `--limit` plus local `date_sent` filtering.
 
-If returned messages equal the requested `--limit`, report that the time-window scan may be truncated. Do not claim complete coverage unless the fetched set extends older than the window start.
+If returned messages equal the requested `--limit`, page with `--offset` or report that the time-window scan may be truncated. Do not claim complete coverage unless the fetched set extends older than the window start.
+
+`mail mark` accepts either `--message-ids` for specific emails, or `--mailbox`/`--account` (with `--message-ids` omitted) to batch-mark a whole mailbox. Confirm intent before whole-mailbox marking.
 
 ## Contacts
 
@@ -186,6 +208,8 @@ orchard notes open --note-id NOTE_ID --json
 
 Create/update content expects HTML.
 
+`notes create --folder` requires an existing folder in Apple Notes; the command errors if the folder is not found. Omit it to use the default folder.
+
 ## Music
 
 ```bash
@@ -210,10 +234,12 @@ orchard music play --type playlist --name "Playlist name" --json
 orchard music play --type song --id SONG_ID --json
 
 orchard music playlist create --name "Playlist" --description "Description" --json
-orchard music playlist add --playlist-id PLAYLIST_ID --song-ids "SONG_ID1,SONG_ID2" --json
-orchard music playlist remove --playlist-id PLAYLIST_ID --song-ids "SONG_ID1,SONG_ID2" --json
-orchard music playlist delete --playlist-id PLAYLIST_ID --json
+orchard music playlist add --name "Playlist" --songs "Song one,Song two" --json
+orchard music playlist remove --name "Playlist" --songs "Song one,Song two" --json
+orchard music playlist delete --name "Playlist" --json
 ```
+
+Playlist add/remove/delete take playlist and song names, not IDs. `--playlist-id` and `--song-ids` still exist as legacy aliases of `--name` and `--songs` but also expect names.
 
 Control actions: `play`, `pause`, `next`, `previous`, `stop`, `volume`, `shuffle`, `repeat`.
 
@@ -241,6 +267,8 @@ orchard messages read --type messages --query "keyword" --limit 50 --json
 
 orchard messages send --to "+15551234567" --text "Message" --service iMessage --json
 orchard messages send --to "+15551234567" --text "Message" --service SMS --scheduled-time 2026-06-03T18:00:00+08:00 --json
+orchard messages send --contact-name "Alice Chen" --text "Message" --json
+orchard messages send --to "chat123456789" --group-name "Family" --text "Message" --json
 
 orchard messages scheduled list --json
 orchard messages scheduled cancel --id SCHEDULED_MESSAGE_ID --json
@@ -249,6 +277,8 @@ orchard messages scheduled cancel --id SCHEDULED_MESSAGE_ID --json
 Read types: `chats`, `messages`.
 
 In 0.6.0, `messages read --type chats` requires `--query` in practice even though help marks it optional.
+
+`messages send` takes `--to` (phone/email/chat identifier) or `--contact-name` (looked up in existing chats); one of the two is required. Group chats (`--to chat...`) also require `--group-name`.
 
 Confirm before sending unless the user has provided exact text and requested send.
 
@@ -264,6 +294,7 @@ orchard location geocode --direction coords_to_address --lat 36.6521 --lon 117.1
 
 orchard location route --origin "Jinan Station" --destination "Jinan West Station" --transport transit --json
 orchard location route --origin "36.6521,117.1201" --destination "36.668,116.997" --transport auto --json
+orchard location route --straight-line --lat1=36.6521 --lng1=117.1201 --lat2=34.0522 --lng2=-118.2437 --unit kilometers --json
 orchard location current --json
 ```
 
@@ -272,6 +303,8 @@ Location search types: `search`, `nearby`, `autocomplete`.
 Geocode directions: `address_to_coords`, `coords_to_address`.
 
 Route transports: `auto`, `walk`, `transit`.
+
+`route --straight-line` computes great-circle distance from `--lat1/--lng1/--lat2/--lng2` (no `--origin`/`--destination` needed); `--unit` is `meters`, `kilometers` (default), or `miles`. Always write coordinates in the equals form (`--lng2=-118.2437`) so negative values parse.
 
 ## Shortcuts
 
