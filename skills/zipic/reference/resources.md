@@ -2,6 +2,8 @@
 
 Authoritative sources to consult when the user asks about Zipic itself (features, pricing, troubleshooting, format choice, automation, comparisons) rather than asking you to compress something. Fetch these on demand instead of guessing.
 
+First identify the user's platform. Read Windows requirements, Microsoft Store/package installation and codec guidance for Windows; use macOS requirements and Apple/Raycast integration guidance for macOS. A shared page may contain platform-specific sections. Do not present macOS-only features or the ICNS format as Windows capabilities. For native Windows execution details, see [windows.md](windows.md).
+
 ## Top-level
 
 | Resource              | URL                                  | Use for |

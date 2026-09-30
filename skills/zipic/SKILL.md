@@ -1,15 +1,13 @@
 ---
 name: zipic
 description: |
-  macOS image compression and Zipic-app expert. Drives the local Zipic.app via its `zipic` CLI (Zipic >= 1.9.5) — structured JSON results, per-file `saved_pct`, exit codes. Falls back to the URL Scheme on older builds.
-  Supports JPEG, PNG, WebP, HEIC, AVIF, TIFF, ICNS, PDF, GIF, JPEG-XL, SVG. Batch, format conversion, resize, presets, compression history.
-  MUST use this skill when the user mentions: compress / optimize / shrink image, image too large, batch compress, convert to WebP/AVIF/HEIC/JXL, reduce image size, optimize SVG, minify SVG, preset, compression history. Also: "compress these" / "these images are too big" with image files (incl. SVG) attached.
-  ALSO use for Zipic-usage Q&A: pricing, Pro features, activation, free-tier limits, troubleshooting, vs ImageOptim/TinyPNG/Squoosh, CLI install, format support, Raycast/Shortcuts integration.
-  macOS only. Requires Zipic.app.
+  Local image compression and Zipic-app expert for macOS and native Windows. Uses the Zipic CLI with JSON results, per-file saved_pct and exit codes; URL Scheme is a limited fallback.
+  Use for compressing, optimizing or shrinking images, batch compression, conversion to WebP/AVIF/HEIC/JXL, SVG optimization, resizing, presets and compression history. Also use for Zipic pricing, Pro features, activation, free-tier limits, troubleshooting, comparisons, CLI setup and workflow integration.
+  Requires the installed Zipic GUI in the same execution environment. Windows uses the packaged zipic.exe alias and PowerShell; macOS uses Zipic.app. Format support and integrations differ by platform.
 license: MIT
-compatibility: macOS only. Requires Zipic.app >= 1.9.5 for CLI; >= 1.9.0 for SVG via URL Scheme.
+compatibility: macOS with Zipic.app >= 1.9.5 for CLI (>= 1.9.0 for SVG via URL Scheme), or Windows 10 build 19041+ / Windows 11 with packaged Zipic and its zipic.exe execution alias. Windows examples support PowerShell 5.1 and 7. No native Linux CLI; WSL requires Windows interop and Windows-accessible paths.
 metadata:
-  version: 2.1.0
+  version: 2.2.0
   author: 十里 & FRIDAY
   homepage: https://zipic.app
   changelog: ./CHANGELOG.md
@@ -17,15 +15,25 @@ metadata:
 
 # Zipic
 
-Native macOS image compression, 100% local. Drive it via the `zipic` CLI; URL Scheme is a fallback only when the CLI binary isn't installed.
+Image compression on macOS and Windows, 100% on-device. Drive the installed GUI via its CLI; URL Scheme is a fallback when the CLI is unavailable.
+
+## Platform and shell
+
+Identify the OS, architecture and shell **where commands execute**, rather than the user's desktop OS. Keep the GUI, CLI and input/output paths on the same host and user account.
+
+- **macOS**: use `zipic` and POSIX shell syntax. If missing, run `bash "<skill-dir>/scripts/detect.sh"`.
+- **Native Windows**: read [reference/windows.md](reference/windows.md) before setup or compression. Use PowerShell and `zipic.exe`; run `& "<skill-dir>\scripts\detect.ps1"` to resolve the executable and verify its version. The packaged CLI is `ZipicCli.exe`, exposed as the `zipic.exe` app execution alias; the GUI's `Zipic.exe` is a different executable.
+- **WSL**: there is no Linux Zipic binary. Use Windows PowerShell through WSL interop with paths converted by `wslpath -w`, following the Windows reference. A Linux container or remote Linux host without Windows interop cannot invoke the Windows GUI.
+
+Resolve `<skill-dir>` from this loaded skill's location; script paths are not relative to the user's project. On Windows use `& $exe` for a resolved executable, `$env:NAME` for environment variables, quoted paths and argument arrays. Do not copy Bash continuations, `open`, `brew` or `/tmp` paths into PowerShell.
 
 ## Compress
 
-```bash
+```text
 zipic compress --json [flags] <files-or-dirs>...
 ```
 
-`--json` is required — it surfaces per-file `output_bytes` / `saved_pct` and lets you map exit code to the failure mode. Pass directories directly; Zipic walks them recursively.
+`--json` is required — parse stdout separately from stderr. Capture the process exit code immediately (`$LASTEXITCODE` in PowerShell), then inspect `isError` and every `data.results[].state`; exit 0 alone does not prove every file succeeded. Report per-file `output_bytes`, `saved_pct` and errors. Pass directories directly; Zipic walks them recursively.
 
 | Need                       | Flag |
 | -------------------------- | ---- |
@@ -48,13 +56,13 @@ zipic compress --json --level 3 --format webp --width 1920 --output /tmp/out/ /p
 zipic compress --json --format webp --output /tmp/out/ /path/folder
 ```
 
-**Exit codes**: `0` ok / `1` runtime — read `error.code` from JSON / `64` bad args / `65` Zipic.app not running. **`pro_required`** (free tier hits AVIF/JXL output, SVG/APNG/AVIF/TIFF/ICNS/JXL input, daily quota, or `>1` preset) returns a structured error with `data.purchase_url` and `data.trial_available` — surface those, don't bypass.
+**Exit codes**: `0` request completed / `1` runtime — read `error.code` from JSON / `64` bad args (may be stderr only) / `65` GUI unavailable after auto-launch. **`pro_required`** returns upgrade/trial context in `error.data` (`purchase_url`, `trial_available` when present) — surface it, don't bypass. Format gates vary by platform; Windows uses ICO rather than macOS ICNS. Per-file quota/failure states must also be reported.
 
 For preset / history / dry-run / `pro_required` schema: `reference/cli.md`.
 
 ## When the CLI fails
 
-If `zipic` isn't on `$PATH`, or exit 65 persists after one retry:
+On **macOS**, if `zipic` isn't on `$PATH`, or exit 65 persists after one retry, run from the skill directory:
 
 ```bash
 bash scripts/detect.sh
@@ -68,15 +76,17 @@ Read the `route` field:
 | `install_cli`    | CLI binary missing — tell user: Zipic menu bar → "Install zipic CLI". Use Fallback below for now. |
 | `url_scheme`     | Zipic < 1.9.5, no CLI exists — tell user to upgrade. Use Fallback below. |
 | `halt_no_app`    | Zipic not installed — suggest `brew install --cask zipic` or https://zipic.app. |
-| `halt_not_macos` | macOS only — suggest ImageMagick / cwebp. |
+| `halt_not_macos` | This Bash detector is macOS-only. On Windows switch to `scripts/detect.ps1`; on WSL read the Windows reference. |
+
+On **Windows**, use the detection routes in [reference/windows.md](reference/windows.md). There is no separate CLI installer: check the app execution alias and `$env:LOCALAPPDATA\Microsoft\WindowsApps` before reinstalling. The CLI auto-launches the packaged GUI and waits about 8 seconds; on persistent exit 65, open Zipic in the same user's desktop session and retry once. Do not repeatedly retry failed compression batches or run the GUI's executable as a CLI.
 
 ## Fallback: URL Scheme
 
-Only when `route` is `install_cli` or `url_scheme`. URL Scheme is fire-and-forget — no JSON, no exit code. Parameter names differ from the CLI (e.g. `--output` → `directory=`, `--keep-aspect` → `ratio=`). **Load `reference/url-scheme.md` before constructing the URL** — don't translate flags from memory; `saveLocation=` is a common invented param that doesn't exist (it's `directory=`). Verify outputs with `ls -lh` after `open`.
+On macOS, use only when `route` is `install_cli` or `url_scheme`; on Windows, repair the alias first and use a URL only if CLI recovery is unavailable. URL Scheme has no result JSON or compression exit code. **Load [reference/url-scheme.md](reference/url-scheme.md) before constructing the URL**: parameter names and semantics differ by platform (`ratio` is particularly different). Percent-encode paths, use a separate output directory and inspect actual files afterward. Launching the URL does not prove compression succeeded.
 
 ## SVG and presets quick notes
 
-- **SVG optimization** (Pro, Zipic ≥ 1.9.0): pass `.svg` files like any other input. Output stays SVG — never set `--format` on SVG. Level 1–2 conservative, 3–4 balanced, 5–6 may simplify paths visibly.
+- **SVG optimization** (Pro; macOS Zipic ≥ 1.9.0, also supported on Windows): pass `.svg` files like any other input. Output stays SVG — never set `--format` on SVG. Level 1–2 conservative, 3–4 balanced, 5–6 may simplify paths visibly.
 - **Presets** (CLI only): `zipic preset list --json`, `zipic preset show "<name>" --json`, `zipic preset create --name "Web 2x" --level 3 --format webp --width 2400`. `zipic preset set-default "<name>"` (CLI ≥ 0.2.0) selects the active preset — the baseline a flag-less `compress` inherits. Free users may keep at most 1 custom preset.
 - **History** (CLI only): `zipic list --json --limit 20` / `zipic list clear`.
 

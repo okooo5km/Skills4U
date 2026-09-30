@@ -1,15 +1,17 @@
 # Zipic CLI Reference
 
-Ground-truth spec for the `zipic` binary shipped with Zipic.app >= 1.9.5. The CLI talks to the running GUI over a UDS socket at `~/Library/Application Support/studio.5km.zipic/cli.sock` and returns line-delimited JSON. If the GUI isn't running, the CLI auto-launches it and waits up to 8 s for the socket to bind.
+Shared CLI contract, with historical macOS 0.1.0/0.2.0 behavior below. macOS Zipic.app >= 1.9.5 uses a UDS socket at `~/Library/Application Support/studio.5km.zipic/cli.sock`. Windows packaged Zipic exposes `zipic.exe` (target: `ZipicCli.exe`) and uses `\\.\pipe\Zipic.Cli.<Windows-user-SID>`. Both auto-launch the GUI and wait about 8 seconds. For Windows setup, PowerShell/UTF-8 handling, desktop-session requirements and differences, read [windows.md](windows.md).
 
-Two CLI generations are in the field — check `zipic --version`:
+Check `zipic --version` and `--help`; CLI versions are independent of app versions. The historical macOS generations are:
 
 - **0.1.0** (Zipic 1.9.5): baseline. `--overwrite` is one-way (no off switch), `--keep-hierarchy` / `--tiff-compression` / `--autocopy` are accepted but **silently dead**, `--<flag>=false` forms are silently dropped, and `preset set-default` returns `not_implemented`.
 - **0.2.0** (later Zipic builds): full boolean pairs (`--no-overwrite`, `--no-progressive`, `--no-keep-hierarchy`) plus explicit `--<flag>=true|false` forms, the three dead flags actually work, invalid values exit 64 instead of being ignored, compress responses echo the resolved option, and `preset set-default` works.
 
+Windows currently implements CLI 0.3.0, including the boolean pairs and `preset set-default`; do not apply the macOS 0.1.0 limitations to it. Newer CLIs add commands not catalogued in this historical table; use installed `--help`. On Windows `--specified` is rejected, monitor depth uses 0–5, and preset/monitor commands reject global-only overrides such as metadata retention. See the Windows reference.
+
 Flags marked "0.2.0" below require the newer CLI.
 
-Install path: `/usr/local/bin/zipic` (symlink into `Zipic.app/Contents/Resources/zipic`). Installed via Zipic menu bar → "Install zipic CLI" (one-time admin password prompt).
+macOS install path: `/usr/local/bin/zipic` (symlink into `Zipic.app/Contents/Resources/zipic`). Installed via Zipic menu bar → "Install zipic CLI" (one-time admin password prompt). Windows registers the execution alias during package installation; no separate CLI install menu applies.
 
 ## Synopsis
 
@@ -32,10 +34,12 @@ zipic --help    | -h
 
 | Code | Constant          | Meaning                                                  |
 | ---- | ----------------- | -------------------------------------------------------- |
-| 0    | success           | Operation completed.                                     |
+| 0    | success           | Request completed; still inspect every per-file state.    |
 | 1    | businessError     | Runtime/business failure (e.g. `pro_required`, `not_found`, `internal_error`). |
 | 64   | usageError        | Invalid arguments (bad flag, wrong enum, missing required value). |
-| 65   | guiNotRunning     | Couldn't reach the Zipic GUI socket and auto-launch failed. |
+| 65   | guiNotRunning     | Couldn't reach the Zipic GUI socket/pipe and auto-launch failed. |
+
+Capture stdout and stderr separately. Local argument errors may emit only stderr even with `--json`; capture the native exit code before attempting JSON parsing. A successful response can contain failed/cancelled/quota-exceeded rows; `completed_count` is not a success count.
 
 ## Subcommand: `compress`
 
@@ -127,10 +131,11 @@ Success (after a real run):
 `data.option` (0.2.0) echoes the fully resolved option the run actually used —
 check `option.overwrite` to know whether a conversion deleted its sources.
 
-`state` values:
+`state` values (inspect each result, not just top-level `isError`):
 - `success` — compressed, output file written.
 - `kept_source` — compressed result was larger than the input, so the original was kept.
-- `failed` (or any other string) — failure for that file; check the GUI for details.
+- `skipped` — already optimized; no new compression was needed.
+- `failed`, `cancelled`, `quota_exceeded` — incomplete or failed output; surface the result's `error` text when present. Do not label unknown states as success.
 
 Dry run:
 
@@ -166,7 +171,7 @@ zipic preset <subcommand> [args]
 | `import <file>`                                         | Import preset JSON; auto-renames on name collision (`<name> (Imported)`, `(Imported 2)`, …). |
 | `export <name-or-id> --output <file>`                   | Export to JSON.                                 |
 
-`create` accepts the same `--level/--format/--width/--height/--scale/--suffix/--subfolder/--output/--location` flags as `compress`, plus the boolean pairs `--keep-aspect/--no-keep-aspect`, `--preserve-metadata/--no-metadata`, `--overwrite/--no-overwrite`, `--progressive/--no-progressive`, `--add-suffix/--no-suffix`, `--add-subfolder/--no-subfolder` (negative forms need 0.2.0). They're baked into the preset; unspecified values inherit from the GUI's current settings.
+`create` accepts the same `--level/--format/--width/--height/--scale/--suffix/--subfolder/--output/--location` flags as `compress`, plus the boolean pairs `--keep-aspect/--no-keep-aspect`, `--overwrite/--no-overwrite`, `--progressive/--no-progressive`, `--add-suffix/--no-suffix`, `--add-subfolder/--no-subfolder` (negative forms need 0.2.0). They're baked into the preset; unspecified values inherit from the GUI's current settings. Current Windows rejects `--preserve-metadata/--no-metadata` here because metadata retention is global, not stored in presets; use it only on `compress` for a one-run override.
 
 ### preset JSON response
 

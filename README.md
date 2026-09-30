@@ -55,7 +55,7 @@ npx skills add okooo5km/Skills4U --skill <skill-name>
 |---|---|
 | [chatwoot](skills/chatwoot/) | 用官方 Chatwoot CLI 查看客服对话、客户反馈、联系人、收件箱和帮助中心内容 |
 | [orchard](skills/orchard/) | 用本地 Orchard CLI 操作 macOS Apple 应用：日历、提醒、邮件、通讯录、备忘录、信息、天气等 |
-| [zipic](skills/zipic/) | macOS 图片批量压缩、格式转换、缩放（JPEG / WebP / AVIF / HEIC / SVG 等） |
+| [zipic](skills/zipic/) | macOS / Windows 本机图片批量压缩、格式转换、缩放，支持 CLI JSON 与 PowerShell 调用 |
 
 ### 合规与文书
 

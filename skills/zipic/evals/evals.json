@@ -74,6 +74,71 @@
         "The answer mentions log export / sharing logs as a diagnostic step.",
         "The answer does not fabricate steps not present in the official docs (e.g. invented 'reset preferences' instructions that aren't in the troubleshooting page)."
       ]
+    },
+    {
+      "id": 6,
+      "name": "windows-chinese-path-conversion",
+      "prompt": "在 Windows PowerShell 中，将 C:\\Images\\产品 photo.png 转成 WebP，输出 C:\\Images\\导出 WebP，保留原图。",
+      "expected_output": "Identifies native Windows and reads reference/windows.md; does not run Bash detection or brew.; Uses scripts/detect.ps1 or equivalent read-only alias detection and verifies --version.; Invokes the resolved CLI with & and an argument array, --json, --no-overwrite and the distinct --output directory.; Sets UTF-8 decoding, keeps stderr separate and captures $LASTEXITCODE immediately.; Checks isError, per-file states, actual output files and source preservation before reporting saved_pct.",
+      "files": [],
+      "expectations": [
+        "Identifies native Windows and reads reference/windows.md; does not run Bash detection or brew.",
+        "Uses scripts/detect.ps1 or equivalent read-only alias detection and verifies --version.",
+        "Invokes the resolved CLI with & and an argument array, --json, --no-overwrite and the distinct --output directory.",
+        "Sets UTF-8 decoding, keeps stderr separate and captures $LASTEXITCODE immediately.",
+        "Checks isError, per-file states, actual output files and source preservation before reporting saved_pct."
+      ]
+    },
+    {
+      "id": 7,
+      "name": "windows-alias-not-on-path",
+      "prompt": "Windows 已安装 Zipic，但 AI 终端提示找不到 zipic。帮我压缩 C:\\Images\\photo.png。",
+      "expected_output": "Checks Get-Command zipic.exe and the current user WindowsApps alias; probes --version before claiming readiness.; Uses a working absolute alias path when PATH is stale; distinguishes missing/disabled alias from absent app.; Does not invoke GUI Zipic.exe as CLI, copy files out of MSIX, reinstall blindly or change global execution policy.",
+      "files": [],
+      "expectations": [
+        "Prefers the installed package-scoped alias when a development package owns the global zipic.exe command.",
+        "Checks Get-Command zipic.exe and the current user WindowsApps alias; probes --version before claiming readiness.",
+        "Uses a working absolute alias path when PATH is stale; distinguishes missing/disabled alias from absent app.",
+        "Does not invoke GUI Zipic.exe as CLI, copy files out of MSIX, reinstall blindly or change global execution policy."
+      ]
+    },
+    {
+      "id": 8,
+      "name": "windows-errors-and-partial-results",
+      "prompt": "Windows Zipic 的 --json 命令退出 64，只在 stderr 打了一行错误；另一次退出 0，但 results 有 success、failed、quota_exceeded。该怎么处理？",
+      "expected_output": "Does not parse empty stdout as successful JSON on exit 64; reports stderr and corrects invalid flags.; Does not claim all rows succeeded because exit=0/isError=false/completed_count is positive.; Reports failed/quota rows, uses per-file error text and does not retry successful rows or bypass Pro gates.",
+      "files": [],
+      "expectations": [
+        "Does not parse empty stdout as successful JSON on exit 64; reports stderr and corrects invalid flags.",
+        "Does not claim all rows succeeded because exit=0/isError=false/completed_count is positive.",
+        "Reports failed/quota rows, uses per-file error text and does not retry successful rows or bypass Pro gates."
+      ]
+    },
+    {
+      "id": 9,
+      "name": "windows-session-and-wsl",
+      "prompt": "我用 Windows 上的 WSL/SSH 跑 AI，zipic --version 成功，但压缩返回 gui_not_running。",
+      "expected_output": "Distinguishes the agent execution environment and desktop session from the physical desktop OS.; Explains the packaged GUI/named-pipe requirement and retries once after same-user interactive GUI startup.; For WSL uses Windows interop, Windows-accessible paths and wslpath -w; does not invent a Linux Zipic binary.; Does not mistake --version for successful GUI communication or repeatedly relaunch/elevate/reset data.",
+      "files": [],
+      "expectations": [
+        "Distinguishes the agent execution environment and desktop session from the physical desktop OS.",
+        "Explains the packaged GUI/named-pipe requirement and retries once after same-user interactive GUI startup.",
+        "For WSL uses Windows interop, Windows-accessible paths and wslpath -w; does not invent a Linux Zipic binary.",
+        "Does not mistake --version for successful GUI communication or repeatedly relaunch/elevate/reset data."
+      ]
+    },
+    {
+      "id": 10,
+      "name": "windows-platform-boundaries",
+      "prompt": "在 Windows 上用 Zipic 将 HEIC 和 ICNS 转 WebP，使用 --specified 保存，或用 URL ratio=true 锁定比例。",
+      "expected_output": "Uses --output instead of unsupported --specified and does not claim native ICNS support (Windows uses ICO).; Checks HEIC per-file errors and system codec availability rather than guaranteeing support.; Does not use Windows URL ratio=true as aspect locking; Windows ratio is percentage 1-99.; Prefers the CLI and does not recommend Raycast/Apple Shortcuts as Windows integration.",
+      "files": [],
+      "expectations": [
+        "Uses --output instead of unsupported --specified and does not claim native ICNS support (Windows uses ICO).",
+        "Checks HEIC per-file errors and system codec availability rather than guaranteeing support.",
+        "Does not use Windows URL ratio=true as aspect locking; Windows ratio is percentage 1-99.",
+        "Prefers the CLI and does not recommend Raycast/Apple Shortcuts as Windows integration."
+      ]
     }
   ]
 }

@@ -5,6 +5,23 @@ All notable changes to the `zipic` skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 
+## [2.2.0] — 2026-10-01
+
+### Added
+- Native Windows execution guidance grounded in Zipic-Windows: packaged `zipic.exe` alias, PowerShell 5.1/7 invocation, UTF-8 JSON, native exit codes, GUI/session requirements and WSL interop.
+- Read-only `scripts/detect.ps1` checks the installed package, executable/alias and actual CLI version without launching the GUI or modifying settings; prefers the package-scoped alias to avoid development packages hijacking the global command.
+- Windows evaluation scenarios for Chinese/space-containing paths, source-preserving conversion, alias recovery, stderr-only usage errors, per-file failures and session/WSL routing.
+
+### Fixed
+- Removed macOS-only routing from the skill metadata and README; the macOS detector now routes Windows users to the native detector in the instructions.
+- Documented Windows differences: unsupported `--specified`, ICO versus ICNS, system HEIC codecs, monitor depth 0–5 and preset/global setting boundaries.
+- Corrected result handling: exit 0 is not a per-file success guarantee, `completed_count` counts finished inputs, and Pro context lives in `error.data`.
+- Separated Windows URL Scheme syntax from macOS, including percentage `ratio` and source-deletion semantics.
+
+### Verified
+- Windows 11 x64, PowerShell 5.1, packaged Zipic 1.10.3 / CLI 0.3.0: package-scoped detection, dry-run, Chinese/space-containing path conversion to WebP (79% saved; source SHA-256 unchanged), three independent GUI pipe requests, stderr-only exit 64, structured exit 1 and mixed success/failed batch results with exit 0.
+- macOS detector and skill frontmatter validation passed. PowerShell 7, Windows 10 and ARM64 were not exercised on hardware in this change.
+
 ## [2.1.0] — 2026-08-03
 
 ### Added
