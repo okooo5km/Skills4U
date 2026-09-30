@@ -2,11 +2,11 @@
 name: orchard
 description: "Use the local Orchard app to interact with macOS Apple apps and services: Calendar, Reminders, Clock, Mail, Contacts, Notes, Music, Weather, Messages, Location/Maps, and Apple Shortcuts. Two execution paths reach the same running Orchard.app: the `orchard` CLI (default — use this if you have a Bash/shell tool, e.g. Claude Code, Codex CLI, Cursor) and a stdio MCP server, `orchard mcp`, exposed as prefixed MCP tools (fallback for sandboxes that cannot run the macOS CLI, e.g. Claude Cowork, bridged through Claude Desktop). Use when a task asks to read or manage local calendar events, reminders, Apple Mail, contacts, notes, iMessage/SMS, Apple Music playback/library, weather, current time/timezones, geocoding, routes, current location, or local Shortcuts."
 metadata:
-  version: "0.7.4"
-  updated: "2026-08-09"
+  version: "0.7.5"
+  updated: "2026-09-30"
   tested_with:
-    orchard_app: "0.6.2 (17)"
-    orchard_cli: "0.6.2"
+    orchard_app: "0.6.3 (18)"
+    orchard_cli: "0.6.3"
 ---
 
 # Orchard
@@ -56,6 +56,7 @@ For the full command matrix, read `references/commands.md`.
 
 ## Known Pitfalls (CLI)
 
+- When testing an alternate app build, stop the installed app first, use that build's absolute bundled CLI path, set `ORCHARD_NO_AUTOLAUNCH=1`, and verify the GUI process path/socket owner. A CLI version alone does not identify the running executor.
 - Use `"$ORCHARD_BIN" <domain> <command> ...`, not a hard-coded `orchard`, unless `command -v orchard` was the selected route.
 - Check leaf-command help with `"$ORCHARD_BIN" <domain> <command> --help` or `"$ORCHARD_BIN" help <domain> <command>`; both print the same output.
 - In zsh loops, never pass a multi-word command through a scalar like `"$ORCHARD_BIN" $cmd`; zsh keeps it as one argument. Use an array, or `eval` only for trusted static command strings.
@@ -67,13 +68,24 @@ For the full command matrix, read `references/commands.md`.
 
 These describe the tools themselves, not either transport — they apply whether you're on the CLI or the MCP channel.
 
-- Use ISO 8601 timestamps for all date ranges. Include timezone offsets when the user means local time, e.g. `2026-06-03T08:00:00+08:00`.
+- Use Gregorian `YYYY-MM-DD` for date-only reminders and all-day events; use whole-second ISO timestamps for timed items, including an offset when the user means local time. All-day event end dates are exclusive. Never turn a date-only reminder into a midnight timestamp.
 - Convert relative dates before calling Orchard. "Yesterday 08:00" must become a concrete timestamp.
 - Before creating calendar events or reminders, list calendars/lists and choose the right writable target. Do not dump everything into a default list/calendar unless the user explicitly asks.
 - Before update/delete/mark/cancel operations, read the target and capture its ID.
 - Treat destructive operations as real local mutations. For deletes, bulk updates, sending mail/messages, and scheduled sends, confirm intent unless the user explicitly requested the action.
 - Before running an Apple Shortcut, list or open the matching shortcut first. Use `shortcuts run` only with `--confirm` and `--reason` (CLI) / `confirm`+`reason` (MCP), and confirm with the user unless they explicitly requested that exact run.
 - Never print huge email bodies or private data unnecessarily. Fetch summaries first, then read full content only for messages that matter.
+
+## Calendar and Reminder Date Safety (Orchard 0.6.3+)
+
+- Check the installed CLI/app version before using these behaviors. Orchard 0.6.2 can report success while ignoring date-only writes. On older versions, require an upgrade for date-only operations; a midnight timestamp is not an equivalent workaround.
+- Reminder `due_date="2026-09-30"` creates only year/month/day components, with `has_time=false`. Timed due dates preserve seconds; nonzero fractional seconds are rejected because macOS EventKit discards them. Creation defaults to no alarm for date-only and a due-time alarm for timed items.
+- Date updates preserve existing alarms when `enable_alarm` is omitted. `false` clears all alarms; `true` replaces them with one due-time alarm and requires a timed date. Converting a reminder with time alarms to date-only requires explicit `false`; obtain the user's intent to disable those notifications. Clearing `due_date` also clears alarms and recurrence.
+- All-day creation uses `--all-day`; updating mode uses `--all-day true|false` (MCP: boolean `all_day`). Supply both dates when switching modes. For September 30 only, use start `2026-09-30`, end `2026-10-01`. Timed recurrence can use an IANA `time_zone` (CLI `--time-zone`) to preserve wall time across DST; all-day dates are floating and omit this option.
+- Existing recurring events require an exact `occurrence_date`. A date matches that day's unique start; use a full start timestamp if ambiguous. Never choose a nearby occurrence. Changing an existing series recurrence requires explicit `span=future_events`, authorized by the user.
+- Invalid dates/types/ranges/targets fail before writing. A no-op update returns `updated=false`. Success follows persisted read-back verification. An error beginning “Saved, but…” means a write may have occurred: read current state before deciding whether to retry.
+- `due_to=YYYY-MM-DD` includes that entire day. Calendar query `end_date` is exclusive; ranges beyond four years are split internally. Unknown/empty calendar selectors fail rather than broadening the query.
+- Deleting a nonempty reminder list cascades to its reminders and requires `confirm=true` and a nonempty `reason` (CLI: `--confirm --reason "..."`), in addition to the user's authorization.
 
 ## Common Workflows (CLI)
 

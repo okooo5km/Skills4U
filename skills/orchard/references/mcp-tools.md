@@ -30,6 +30,8 @@ This file is written to be **self-contained**, because this channel has none of 
 | location | Pro | `location_search`, `location_geocode`, `location_route`, `location_current` |
 | shortcuts | Pro | `shortcuts_list`, `shortcuts_folders`, `shortcuts_open`, `shortcuts_run` |
 
+Calendar/reminder date safety below requires Orchard 0.6.3+. On older versions, date-only writes can silently fail; require an upgrade rather than substituting midnight.
+
 52 tools total. "Required" below always means the tool's actual JSON-Schema `required` array (verified against source, not the CLI's `--help` text, which is sometimes stricter or looser than the underlying tool).
 
 ---
@@ -43,24 +45,26 @@ Typical flow: `calendar_info` (type=calendars) to get a `calendar_id` → `calen
 - **Optional:** `calendar_type` (`"event"` | `"birthday"`, only used when `type=calendars`, default `"event"`) · `start_date`, `end_date` (ISO 8601 — required in practice when `type=events`, just not schema-enforced) · `calendar_ids` (array of calendar-ID strings, filters `type=events`)
 
 ### `calendar_event_create` — create an event
-- **Required:** `title`, `start_date`, `end_date` (ISO 8601, e.g. `"2026-06-03T15:00:00+08:00"`; include a timezone offset for local time)
-- **Optional:** `calendar_id` (default calendar if omitted — get IDs from `calendar_info`) · `location`, `notes`, `url` (strings) · `all_day` (bool, default false) · `alarms` (**array of integers**, minutes before start, e.g. `[15, 60, 1440]` — not a comma string) · `recurrence` (**object**, see "Recurrence object" below)
+- **Required:** `title`, `start_date`, `end_date` (ISO 8601, e.g. `"2026-06-03T15:00:00+08:00"`; include a timezone offset for local time; whole seconds only, or YYYY-MM-DD for all_day=true; end is exclusive)
+- **Optional:** `calendar_id` (default calendar if omitted — get IDs from `calendar_info`) · `location`, `notes`, `url` (strings) · `time_zone` (IANA string for timed recurrence/local timestamps; omit for all-day) · `all_day` (bool, default false) · `alarms` (**array of integers**, minutes before start, e.g. `[15, 60, 1440]` — not a comma string) · `recurrence` (**object**, see "Recurrence object" below)
 - **Gotcha:** don't default to whatever calendar is "current" without listing calendars first, unless the user explicitly doesn't care which calendar.
 
 ### `calendar_event_update` — update an event
 - **Required:** `event_id`
-- **Optional:** `title`, `start_date`, `end_date`, `calendar_id` (moves the event), `location`, `notes` · `url` (pass `""` to clear) · `alarms` (pass `[]` to clear all, or a new array to replace) · `recurrence` (object — replaces the existing rule; `{"frequency":"none"}` removes recurrence) · `span`, `occurrence_date` (recurring events, see below)
+- **Optional:** `all_day` (boolean; switching modes requires both dates), `time_zone` (IANA string for timed events), `title`, `start_date`, `end_date`, `calendar_id` (moves the event), `location`, `notes` · `url` (pass `""` to clear) · `alarms` (pass `[]` to clear all, or a new array to replace) · `recurrence` (object — replaces the existing rule; `{"frequency":"none"}` removes recurrence) · `span`, `occurrence_date` (recurring events, see below)
 - **Gotcha:** only fields you provide change; read the event first if you need to preserve the rest.
-- **Recurring events:** all occurrences share **one** `event_id`. Pass `occurrence_date` (ISO 8601) to target a specific occurrence — without it, the first occurrence is used. `span` is `"this_event"` | `"future_events"`; default is `this_event`, except when `recurrence` itself changes, which auto-applies `future_events` (rule changes affect the series).
+- **Recurring events:** all occurrences share **one** `event_id`. An existing series requires `occurrence_date` to match an exact start. A bare date must match one unique start on that day; a full timestamp identifies that instant. Missing/ambiguous starts fail. `span` is `"this_event"` | `"future_events"`, default `this_event`; changing an existing series recurrence requires explicit `"future_events"` and user authorization.
 
 ### `calendar_event_delete` — delete an event
 - **Required:** `event_id`
-- **Optional:** `span` (`"this_event"` | `"future_events"`, default `this_event`) · `occurrence_date` (ISO 8601 — which occurrence of a recurring series to target; default first)
+- **Optional:** `span` (`"this_event"` | `"future_events"`, default `this_event`) · `occurrence_date` (ISO 8601 — required for an existing series; exact unique occurrence start)
 - **Gotcha:** destructive. Confirm with the user unless they explicitly named this exact event. For a recurring event, the default deletes only the targeted occurrence; `future_events` from the first occurrence deletes the entire series.
 
 ### `calendar_convert` — convert a date to another calendar system
 - **Required:** `date` (ISO 8601), `calendar_identifier`
 - `calendar_identifier` enum: `gregorian`, `buddhist`, `chinese`, `hebrew`, `islamic`, `islamicCivil`, `indian`, `japanese`, `persian`, `coptic`, `ethiopicAmeteMihret`, `ethiopicAmeteAlem`, `iso8601`
+
+Calendar/reminder requests validate all types, dates, ranges and writable entity targets before saving. Use booleans and integer arrays, not strings or null. No-op updates return `updated=false`. Success follows persisted read-back verification; if an error says “Saved, but…”, inspect current state before retrying. Timed writes and recurrence end timestamps use whole seconds. All-day start/end accept Gregorian dates with an exclusive end; do not use 23:59:59.
 
 ### Recurrence object (shared by calendar and reminder create/update)
 - **Required:** `frequency` — `"daily"` | `"weekly"` | `"monthly"` | `"yearly"`; on update, `"none"` removes recurrence
@@ -75,18 +79,19 @@ Typical flow: `reminder_info` (type=lists) to get a `list_id` → `reminder_crea
 
 ### `reminder_info` — list reminder lists or reminders
 - **Required:** `type` (`"lists"` | `"reminders"`)
-- **Optional:** `list_id` (filter, `type=reminders`) · `completed` (**boolean**, filter — omit for all, `true` for completed only, `false` for incomplete only; this is not a `"status"` string enum) · `due_from`, `due_to` (ISO 8601, filter due-date range)
+- **Optional:** `list_id` (filter, `type=reminders`) · `completed` (**boolean**, filter — omit for all, `true` for completed only, `false` for incomplete only; this is not a `"status"` string enum) · `due_from`, `due_to` (ISO timestamp or YYYY-MM-DD; date-only due_to includes the entire day; invalid/reversed filters fail)
 
 ### `reminder_create` — create a reminder
 - **Required:** `title`
-- **Optional:** `list_id` (default list if omitted — get IDs from `reminder_info`) · `due_date` (ISO 8601 — this is when the notification fires, not just a label) · `notes` · `priority` (integer) · `enable_alarm` (bool, default true — whether a notification fires at `due_date`) · `recurrence` (object, see "Recurrence object" in the calendar section — **requires `due_date`**)
+- **Optional:** `list_id` (default list if omitted — get IDs from `reminder_info`) · `due_date` (YYYY-MM-DD for date only, whole-second ISO timestamp for timed; nonzero fractional seconds fail) · `notes` · `priority` (integer) · `enable_alarm` (bool, create default: timed=true, date-only=false; true requires a timed due date) · `recurrence` (object, see "Recurrence object" in the calendar section — **requires `due_date`**)
 - **Gotcha — priority direction:** `0` = none, `1` = high, `5` = medium, `9` = low. **Lower numbers are more urgent** (except `0`, which means no priority set). Do not assume higher = more important.
 
 ### `reminder_update` — update a reminder
 - **Required:** `reminder_id`
 - **Optional:** same fields as create, plus `completed` (bool, marks done/undone) · `list_id` (moves to another list) · `recurrence` (object — replaces the existing rule; `{"frequency":"none"}` removes it; setting a rule requires a due date, existing or in the same call)
-- `due_date`: pass `""` to clear — clearing the due date also removes any recurrence
-- `enable_alarm`: omit to leave the existing alarm setting untouched; passing it without a new `due_date` toggles the alarm on the *current* due date
+- `due_date`: pass `""` to clear — clearing the due date also removes alarms and recurrence
+- `enable_alarm`: omission preserves all alarms when updating dates; false clears all; true replaces them with one due-time alarm and requires a timed date. A conversion from timed with time alarms to date-only requires explicit false. Obtain notification intent before disabling alarms.
+- Results expose `has_time`, `all_day`, sparse `due_date_components`, and `due_time_zone`. A date-only due date stays YYYY-MM-DD rather than a midnight timestamp.
 
 ### `reminder_delete` — delete a reminder
 - **Required:** `reminder_id`
@@ -101,6 +106,7 @@ Typical flow: `reminder_info` (type=lists) to get a `list_id` → `reminder_crea
 
 ### `reminder_list_delete` — delete a list
 - **Required:** `list_id`
+- **For nonempty lists:** `confirm=true` and nonempty `reason`, with user authorization; deletion cascades to every reminder in the list.
 - **Gotcha:** deletes every reminder in that list too. Confirm before use.
 
 ---

@@ -114,7 +114,9 @@ orchard calendar create \
   --alarms 15,60 \
   --json
 
-orchard calendar create --title "All-day" --start 2026-06-03T00:00:00+08:00 --end 2026-06-03T23:59:59+08:00 --all-day --json
+orchard calendar create --title "All-day" --start 2026-06-03 --end 2026-06-04 --all-day --json
+orchard calendar update --event-id EVENT_ID --all-day true --start 2026-06-04 --end 2026-06-05 --json
+orchard calendar create --title "NY standup" --start 2026-06-03T09:00:00 --end 2026-06-03T09:30:00 --time-zone America/New_York --repeat daily --json
 orchard calendar update --event-id EVENT_ID --title "New title" --start 2026-06-03T16:00:00+08:00 --end 2026-06-03T17:00:00+08:00 --json
 orchard calendar update --event-id EVENT_ID --calendar-id CALENDAR_ID --json
 orchard calendar update --event-id EVENT_ID --url "https://example.com/meeting" --alarms 15,60 --json
@@ -129,17 +131,19 @@ orchard calendar create --title "Review" --start 2026-06-01T14:00:00+08:00 --end
   --repeat monthly --repeat-days-of-week mon --repeat-set-positions 1 --repeat-until 2027-06-30 --json
 orchard calendar create --title "Payday" --start 2026-06-30T09:00:00+08:00 --end 2026-06-30T09:15:00+08:00 \
   --repeat monthly --repeat-days-of-month -1 --json
-orchard calendar update --event-id EVENT_ID --repeat none --json
+orchard calendar update --event-id EVENT_ID --occurrence-date 2026-06-03 --repeat none --span future-events --json
 orchard calendar update --event-id EVENT_ID --occurrence-date 2026-06-15 --start 2026-06-15T11:00:00+08:00 --end 2026-06-15T11:30:00+08:00 --span this-event --json
 orchard calendar delete --event-id EVENT_ID --occurrence-date 2026-06-15 --json
-orchard calendar delete --event-id EVENT_ID --span future-events --json
+orchard calendar delete --event-id EVENT_ID --occurrence-date 2026-06-03 --span future-events --json
 ```
+
+Date handling requires Orchard 0.6.3+. Timed start/end use whole-second ISO timestamps; nonzero fractional seconds fail before writing. All-day dates use `YYYY-MM-DD` and an exclusive end. `--all-day true|false` changes mode on update and requires both dates when switching. `--time-zone IANA_ID` controls timed event/DST recurrence semantics and is omitted for floating all-day dates. Start must precede end; invalid input fails the entire request. Omitted alarms stay unchanged; creation defaults to none.
 
 Update extras: `--calendar-id` moves the event to another calendar; `--url ""` clears the URL; `--alarms ""` clears all alarms.
 
 Repeat flags: `--repeat daily|weekly|monthly|yearly` (update also accepts `none` to remove recurrence) · `--repeat-interval N` (every N periods, default 1) · `--repeat-days-of-week mon,fri` (weekly/monthly/yearly) · `--repeat-days-of-month 1,15,-1` (monthly only; negative counts from month end) · `--repeat-months 1-12`, `--repeat-weeks-of-year`, `--repeat-days-of-year` (yearly only) · `--repeat-set-positions 1|-1` (first/last; must combine with another repeat field) · end with `--repeat-until DATE` (inclusive; bare `YYYY-MM-DD` OK) or `--repeat-count N`, mutually exclusive.
 
-Recurring-event targeting: all occurrences share one event id. `--occurrence-date DATE` picks the occurrence (default: first); `--span this-event|future-events` controls reach. Delete defaults to `this-event`; update defaults to `this-event` unless the repeat rule changes, which auto-applies `future-events`.
+Recurring-event targeting: existing series require `--occurrence-date DATE` to match an exact occurrence start. A bare date must identify one unique start on that day; use its full timestamp otherwise. Missing/ambiguous starts fail; no neighboring occurrence is chosen. `--span this-event|future-events` controls reach and defaults to `this-event`; changing an existing series repeat rule requires explicit `--span future-events`.
 
 `calendar info --calendar-type` filters `--type calendars` output: `event` (default) or `birthday`. `--calendar-ids` (comma-separated) filters `--type events` to specific calendars.
 
@@ -154,7 +158,8 @@ orchard reminder info --type reminders --list-id LIST_ID --status all --json
 orchard reminder info --type reminders --status incomplete --due-from 2026-06-01T00:00:00+08:00 --due-to 2026-06-08T00:00:00+08:00 --json
 
 orchard reminder create --title "Task" --list-id LIST_ID --due-date 2026-06-03T18:00:00+08:00 --priority 5 --notes "Context" --json
-orchard reminder create --title "Silent task" --due-date 2026-06-03T18:00:00+08:00 --enable-alarm false --json
+orchard reminder create --title "Date-only task" --list-id LIST_ID --due-date 2026-06-03 --enable-alarm false --json
+orchard reminder update --reminder-id REMINDER_ID --due-date 2026-06-04 --enable-alarm false --json
 orchard reminder update --reminder-id REMINDER_ID --completed true --json
 orchard reminder update --reminder-id REMINDER_ID --title "New task" --due-date 2026-06-04T09:00:00+08:00 --priority 1 --notes "New notes" --json
 orchard reminder update --reminder-id REMINDER_ID --list-id LIST_ID --json
@@ -168,16 +173,16 @@ orchard reminder update --reminder-id REMINDER_ID --repeat none --json
 
 orchard reminder list-create --name "Project" --color "#3B82F6" --json
 orchard reminder list-update --list-id LIST_ID --name "New name" --color "#22C55E" --json
-orchard reminder list-delete --list-id LIST_ID --json
+orchard reminder list-delete --list-id LIST_ID --confirm --reason "User requested removal of this list and all its reminders" --json
 ```
 
-Status values: `all`, `incomplete`, `completed`. `--due-from`/`--due-to` (ISO 8601) filter `--type reminders` by due-date range.
+Status values: `all`, `incomplete`, `completed`. `--due-from`/`--due-to` accept ISO timestamps or `YYYY-MM-DD`; a date-only upper bound includes the entire day. Invalid/reversed ranges and unknown list IDs fail.
 
 Priority is 0-9 and lower is more urgent: 0=none, 1=high, 5=medium, 9=low.
 
-`--enable-alarm true|false` controls the due-date notification (default true). On update, omit it to leave the existing alarm untouched; passing it without a new `--due-date` toggles the alarm on the current due date. `reminder update --list-id` moves the reminder to another list.
+`--due-date YYYY-MM-DD` is date-only; do not substitute midnight. `has_time` and sparse `due_date_components` distinguish date-only from timed midnight. Timed input preserves whole seconds; nonzero fractions fail. `--enable-alarm true|false` defaults to false for date-only creation and true for timed creation. On update, omission preserves all existing alarms; false clears all, true replaces them with one due-time alarm (requires a timed date). Converting a reminder with time alarms to date-only requires explicit false. Read first and preserve notification intent. `reminder update --list-id` moves the reminder to another list.
 
-Reminders accept the same `--repeat` flag family as calendar (see the Calendar section). Recurring reminders require a due date; clearing the due date (`--due-date ""`) also removes the recurrence.
+Reminders accept the same `--repeat` flag family as calendar (see the Calendar section). Recurring reminders require a due date; clearing the due date (`--due-date ""`) also removes alarms and recurrence. Nonempty list deletion requires `--confirm` and a nonempty `--reason`; it removes all reminders in that list.
 
 ## Clock
 
