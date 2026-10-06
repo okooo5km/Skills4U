@@ -174,23 +174,24 @@ Typical flow: `notes_search` before `notes_create` (avoid duplicates) → `notes
 
 ## messages (Pro)
 
-Typical flow: `messages_read` (type=chats) to get a `chat_identifier` → `messages_read` (type=messages) / `messages_send`.
+Typical flow: `messages_read` (type=chats) to get `chat_guid` / `chat_identifier` → `messages_read` (type=messages) / `messages_send`.
 
-### `messages_read` — search chats or messages
-- **Required:** `type` (`"chats"` | `"messages"`)
-- **Optional:** `search_term` (for `chats`: contact/phone/group name; for `messages`: text content) · `chat_identifier` (scopes `type=messages` to one chat) · `limit` (default 10 for chats, 20 for messages)
-- **Gotcha:** `search_term` is schema-optional for `type=chats`, but in practice an empty/omitted value tends to return nothing useful — always pass a real search term when looking up chats.
+### `messages_read` — read chats, messages, or a reply thread
+- **Required:** `type` (`"chats"` | `"messages"` | `"thread"`)
+- **Optional:** `search_term` (chats: contact/phone/group name; messages: text content) · `chat_identifier` · `chat_guid` (exact chat, preferred for groups) · `contact` (name or phone/email → that person's 1:1 chats) · `message_guid` (required for `thread`) · `start_date` / `end_date` (ISO 8601 or YYYY-MM-DD, local time; date-only `end_date` = end of that day) · `unread_only` · `from_me` (true sent / false received) · `has_attachments` · `include_reactions` (default true) · `include_system` (default false; group renames/member changes) · `offset` · `limit` (1-200; default 10 chats, 20 messages)
+- **Output:** messages have `sender` (`{handle,name}` or `"me"`), `chat` (`identifier`, `guid`, `name`, `is_group`), `kind`, `attachments` (absolute paths), `is_edited`/`edit_history`, `is_retracted`, `reply_to_guid`, aggregated `reactions` (tapbacks are not separate messages); chats have `chat_guid`, `participants`, `last_message_preview`, `unread_count`. Message results include `has_more` for paging.
+- **Gotcha:** an empty/omitted `search_term` with `type=chats` lists recent chats. Unread catch-up: `type=messages`, `unread_only=true`, plus `start_date`. Requires Full Disk Access.
 
 ### `messages_send` — send (or schedule) a message
 - **Required:** `text`
-- **Optional:** `chat_identifier` (phone/email) or `contact_name` — provide one; needed unless the other is given · `service_name` (`"iMessage"` | `"SMS"`, default iMessage; SMS requires Text Message Forwarding enabled on the paired iPhone) · `group_name` (required for group chats, when `chat_identifier` is a `chat...` group ID) · `scheduled_time` (ISO 8601, future)
-- **Gotcha:** confirm with the user before sending unless they gave exact text and explicitly asked you to send.
+- **Optional:** `chat_guid` (exact chat; most precise, use for groups) · `chat_identifier` (phone/email/`chat...`) · `contact_name` · `service_name` (strictly `"iMessage"` | `"SMS"`; defaults to the chat's existing service, else iMessage; SMS requires Text Message Forwarding on the paired iPhone) · `group_name` (group fallback; prefer `chat_guid`) · `scheduled_time` (ISO 8601, future). Priority: `chat_guid` > `chat_identifier` > `contact_name`.
+- **Gotcha:** `contact_name` must resolve to exactly one 1:1 chat; if ambiguous the tool returns a candidate list and sends nothing — pick one and re-send with its `chat_guid`. The result reports `verified` and `message_guid`. Confirm with the user before sending unless they gave exact text and asked you to send.
 
 ### `messages_scheduled_list` — list scheduled messages
-- **Optional:** `status` (default all)
+- **Optional:** `status` (`pending|sent|cancelled|failed|all`, default all). `failed` = failed after 3 retries or expired (pending >24h past due).
 
 ### `messages_scheduled_cancel` — cancel/delete scheduled messages
-- **Optional:** `message_id` (single) · `message_ids` (array, batch — CLI: comma-separated `--ids`) · `status` (bulk delete — CLI: `--status`)
+- **Optional:** `message_id` (single) · `message_ids` (array, batch — CLI: comma-separated `--ids`) · `status` (bulk delete, incl. `failed` — CLI: `--status`)
 - **Gotcha:** same caution as `mail_scheduled_cancel` — exactly one filter required (server-enforced); confirm before status-wide delete.
 
 ---

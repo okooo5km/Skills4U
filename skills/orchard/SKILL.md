@@ -2,8 +2,8 @@
 name: orchard
 description: "Use the local Orchard app to interact with macOS Apple apps and services: Calendar, Reminders, Clock, Mail, Contacts, Notes, Music, Weather, Messages, Location/Maps, and Apple Shortcuts. Two execution paths reach the same running Orchard.app: the `orchard` CLI (default — use this if you have a Bash/shell tool, e.g. Claude Code, Codex CLI, Cursor) and a stdio MCP server, `orchard mcp`, exposed as prefixed MCP tools (fallback for sandboxes that cannot run the macOS CLI, e.g. Claude Cowork, bridged through Claude Desktop). Use when a task asks to read or manage local calendar events, reminders, Apple Mail, contacts, notes, iMessage/SMS, Apple Music playback/library, weather, current time/timezones, geocoding, routes, current location, or local Shortcuts."
 metadata:
-  version: "0.7.5"
-  updated: "2026-09-30"
+  version: "0.7.6"
+  updated: "2026-10-06"
   tested_with:
     orchard_app: "0.6.3 (18)"
     orchard_cli: "0.6.3"
@@ -162,10 +162,14 @@ Notes content is HTML for create/update. If the user gives Markdown, convert it 
 ### Messages
 
 ```bash
-"$ORCHARD_BIN" messages read --type chats --query "search term" --limit 20 --json
-"$ORCHARD_BIN" messages read --type messages --chat "+15551234567" --limit 50 --json
-"$ORCHARD_BIN" messages send --to "+15551234567" --text "Text here" --service iMessage --json
+"$ORCHARD_BIN" messages read --type messages --unread-only --start-date YYYY-MM-DD --json   # unread catch-up
+"$ORCHARD_BIN" messages read --type messages --contact "Alice" --limit 30 --json            # by contact name
+"$ORCHARD_BIN" messages read --type chats --limit 20 --json                                 # empty query = recent chats
+"$ORCHARD_BIN" messages send --contact-name "Alice" --text "Text here" --json
+"$ORCHARD_BIN" messages send --chat-guid "iMessage;+;chat123" --text "Text here" --json     # groups / exact chat
 ```
+
+Reads accept `--chat-guid`, `--contact`, `--query`, date range, `--from-me`, `--has-attachments`, `--offset`; `--type thread --message-guid` returns a reply thread. Tapbacks come aggregated as `reactions`. If a send reports an ambiguous contact with candidates, pick one and re-send with its `chat_guid` — never guess. Check `verified` in the send result.
 
 Confirm before sending unless the user directly instructs sending exact text.
 

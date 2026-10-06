@@ -322,10 +322,15 @@ Weather records include condition, symbol, temperature high/low, precipitation c
 ## Messages
 
 ```bash
-orchard messages read --type chats --query "search term" --limit 20 --json
+orchard messages read --type chats --limit 20 --json                       # empty --query lists recent chats
+orchard messages read --type chats --query "search term" --json
 orchard messages read --type messages --chat "+15551234567" --limit 50 --json
-orchard messages read --type messages --query "keyword" --limit 50 --json
+orchard messages read --type messages --chat-guid "iMessage;+;chat123" --json
+orchard messages read --type messages --contact "Alice Chen" --unread-only --json
+orchard messages read --type messages --query "keyword" --start-date 2026-06-01 --end-date 2026-06-30 --from-me false --has-attachments true --offset 50 --json
+orchard messages read --type thread --message-guid GUID --json
 
+orchard messages send --chat-guid "iMessage;+;chat123" --text "Message" --json
 orchard messages send --to "+15551234567" --text "Message" --service iMessage --json
 orchard messages send --to "+15551234567" --text "Message" --service SMS --scheduled-time 2026-06-03T18:00:00+08:00 --json
 orchard messages send --contact-name "Alice Chen" --text "Message" --json
@@ -338,15 +343,17 @@ orchard messages scheduled cancel --ids "ID1,ID2" --json
 orchard messages scheduled cancel --status cancelled --json
 ```
 
-Read types: `chats`, `messages`.
+Read types: `chats`, `messages`, `thread` (requires `--message-guid`).
 
-`messages read --type chats` requires `--query` in practice even though help marks it optional.
+Read flags: `--query`, `--chat` (identifier), `--chat-guid`, `--contact` (name or phone/email; reads that person's 1:1 chats), `--start-date`/`--end-date` (ISO 8601 or YYYY-MM-DD; end date alone = end of that day), `--unread-only`, `--from-me true|false`, `--has-attachments true|false`, `--no-reactions` (default on; `--reactions`), `--include-system` (group renames/member changes), `--offset`, `--limit` (1-200; default 10 chats / 20 messages). Output has `has_more` for paging.
 
-`messages send` takes `--to` (phone/email/chat identifier) or `--contact-name` (looked up in existing chats); one of the two is required. Group chats (`--to chat...`) also require `--group-name`.
+Output shape: messages carry `sender` (`{handle,name}` or `"me"`), `chat` (`identifier`, `guid`, `name`, `is_group`), `kind`, `attachments` (absolute file paths), `is_edited`/`edit_history`, `is_retracted`, `reply_to_guid`, and aggregated `reactions` (tapbacks are not listed as separate messages). Chats carry `chat_guid`, `participants`, `last_message_preview`, `unread_count`. Text from newer macOS (attributedBody) is read correctly. Requires Full Disk Access.
+
+`messages send` recipient priority: `--chat-guid` > `--to` > `--contact-name` (`--group-name` is a fallback for groups; prefer `--chat-guid`). `--contact-name` must resolve to exactly one 1:1 chat; if ambiguous, the call returns a candidate list and sends nothing — choose one and re-send with its `chat_guid`. `--service` is strictly `iMessage` or `SMS`. The result includes `verified` and `message_guid`.
 
 Confirm before sending unless the user has provided exact text and requested send.
 
-`messages scheduled list --status` and `messages scheduled cancel` follow the same rules as their mail counterparts: cancel requires exactly one of `--id`/`--ids`/`--status`, `--ids` and `--status` cannot combine, and filterless calls are rejected.
+`messages scheduled list --status` accepts `pending|sent|cancelled|failed|all`. `failed` = send failed after 3 retries, or expired (pending more than 24h past due). Cancel requires exactly one of `--id`/`--ids`/`--status`, `--ids` and `--status` cannot combine, and filterless calls are rejected; `--status` bulk-deletes (also valid for `failed`).
 
 ## Location
 
