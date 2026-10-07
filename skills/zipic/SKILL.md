@@ -2,12 +2,12 @@
 name: zipic
 description: |
   Local image compression and Zipic-app expert for macOS and native Windows. Uses the Zipic CLI with JSON results, per-file saved_pct and exit codes; URL Scheme is a limited fallback.
-  Use for compressing, optimizing or shrinking images, batch compression, conversion to WebP/AVIF/HEIC/JXL, SVG optimization, resizing, presets and compression history. Also use for Zipic pricing, Pro features, activation, free-tier limits, troubleshooting, comparisons, CLI setup and workflow integration.
+  Use for compressing, optimizing or shrinking images, batch compression, conversion to WebP/AVIF/HEIC/JXL (including lossless JPEG XL), SVG optimization, resizing, presets and compression history. Also use for Zipic pricing, Pro features, activation, free-tier limits, troubleshooting, comparisons, CLI setup and workflow integration.
   Requires the installed Zipic GUI in the same execution environment. Windows uses the packaged zipic.exe alias and PowerShell; macOS uses Zipic.app. Format support and integrations differ by platform.
 license: MIT
 compatibility: macOS with Zipic.app >= 1.9.5 for CLI (>= 1.9.0 for SVG via URL Scheme), or Windows 10 build 19041+ / Windows 11 with packaged Zipic and its zipic.exe execution alias. Windows examples support PowerShell 5.1 and 7. No native Linux CLI; WSL requires Windows interop and Windows-accessible paths.
 metadata:
-  version: 2.2.0
+  version: 2.3.0
   author: 十里 & FRIDAY
   homepage: https://zipic.app
   changelog: ./CHANGELOG.md
@@ -45,6 +45,7 @@ zipic compress --json [flags] <files-or-dirs>...
 | Use a saved preset         | `--preset "Web 1x"` (explicit flags override) |
 | Keep sources on conversion | `--no-overwrite` (CLI ≥ 0.2.0) or `--output <dir>` (any version) |
 | Preview without running    | `--dry-run` |
+| Lossless JPEG XL           | `--format jxl --jxl-lossless` (CLI ≥ 0.4.0; confirm in `--help`) |
 
 **Source-deletion warning**: flags you don't pass inherit from the user's *active preset*, and `overwrite` (GUI default ON) means a format conversion landing next to the source with the same base name **deletes the source file**. When the user didn't ask to replace sources: pass `--no-overwrite` (CLI ≥ 0.2.0, check `zipic --version`), or write to a separate `--output` dir — safe on every version. `--dry-run --json` echoes the effective value at `data.plan.option.overwrite`. On CLI 0.1.0 there is no reliable off switch (`--no-overwrite` is unknown and swallows the next argument) — use the `--output` route. Full contract: `reference/cli.md`.
 
@@ -55,6 +56,8 @@ zipic compress --json --level 3 --format webp --width 1920 --output /tmp/out/ /p
 # Batch a folder
 zipic compress --json --format webp --output /tmp/out/ /path/folder
 ```
+
+**Lossless JXL** (CLI ≥ 0.4.0): confirm `zipic --help` lists `jxl-lossless` before using it. On a CLI without the flag, the bare form swallows the next argument. Lossless sources become pixel-exact JXL and JPEGs are reversibly transcoded; already-lossy sources (lossy JXL/WebP, HEIC, AVIF, JPEG-in-TIFF) come back as `state: "skipped"` with `skip_reason`, with no output and the source untouched. Report skips separately from failures; re-run only those inputs with `--no-jxl-lossless` if the user accepts lossy, warning them that this often grows the file. Details: `reference/cli.md` → JXL lossless mode.
 
 **Exit codes**: `0` request completed / `1` runtime — read `error.code` from JSON / `64` bad args (may be stderr only) / `65` GUI unavailable after auto-launch. **`pro_required`** returns upgrade/trial context in `error.data` (`purchase_url`, `trial_available` when present) — surface it, don't bypass. Format gates vary by platform; Windows uses ICO rather than macOS ICNS. Per-file quota/failure states must also be reported.
 

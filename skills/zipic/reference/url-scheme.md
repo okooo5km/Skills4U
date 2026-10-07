@@ -61,6 +61,7 @@ Windows accepts output formats `original/jpeg/png/webp/avif/heic/jxl`; do not co
 | `subfolder`    | string                                                       | inherited | Subfolder name under destination. |
 | `specified`    | bool                                                         | false   | macOS only. Windows has no corresponding setting; use `location=custom&directory=...`. |
 | `progressive`  | bool                                                         | inherited | Progressive JPEG. |
+| `jxlLossless`  | bool                                                         | inherited | JPEG XL lossless mode (newer builds; `jxl-lossless` also accepted). Lossy sources are skipped and kept, with no result reported back — prefer the CLI to see `skip_reason`. |
 
 Anything Zipic doesn't recognize is ignored. Bool values must be the literals `true` or `false`.
 

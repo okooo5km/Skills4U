@@ -5,6 +5,20 @@ All notable changes to the `zipic` skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 
+## [2.3.0] — 2026-10-07
+
+### Added
+- JPEG XL lossless mode (zipic-cli 0.4.0): `--jxl-lossless` / `--no-jxl-lossless` on `compress`, `preset create/update` and `monitor add/set`, the per-source routing matrix (pixel-exact for lossless sources, reversible JPEG transcode, skip for already-lossy sources) and the `jxlLossless` URL Scheme parameter.
+- `skipped` result contract: `skip_reason` (`lossy_jxl` | `jpeg_reconstructed_jxl` | `lossy_source`), `skip_detail`, `data.skipped_count`, `list --status skipped` and a non-zero `summary.skipped`.
+- Evaluation scenarios for lossless JXL with mixed sources and for a CLI that predates the flag.
+
+### Fixed
+- `skipped` was described as "already optimized"; it now means JXL lossless declined the source and wrote nothing.
+
+### Notes
+- Ships with zipic-cli 0.4.0 (Zipic 1.10.4 on macOS). The skill still confirms via `--help`, because pre-release builds had the flag under `0.3.0`. On a CLI without it the bare flag swallows the next argument, so the skill never passes it blindly.
+- Windows is adopting the same contract; the skill gates it on `--help` on both platforms.
+
 ## [2.2.0] — 2026-10-01
 
 ### Added

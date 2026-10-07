@@ -7,6 +7,8 @@ Check `zipic --version` and `--help`; CLI versions are independent of app versio
 - **0.1.0** (Zipic 1.9.5): baseline. `--overwrite` is one-way (no off switch), `--keep-hierarchy` / `--tiff-compression` / `--autocopy` are accepted but **silently dead**, `--<flag>=false` forms are silently dropped, and `preset set-default` returns `not_implemented`.
 - **0.2.0** (later Zipic builds): full boolean pairs (`--no-overwrite`, `--no-progressive`, `--no-keep-hierarchy`) plus explicit `--<flag>=true|false` forms, the three dead flags actually work, invalid values exit 64 instead of being ignored, compress responses echo the resolved option, and `preset set-default` works.
 
+- **0.4.0** (Zipic 1.10.4 on macOS; Windows is adopting the same contract): JPEG XL lossless — `--jxl-lossless` / `--no-jxl-lossless`, the `skipped` result state with `skip_reason`, and `list --status skipped`. Confirm with `zipic --help` containing `jxl-lossless` as well: some pre-release 1.10.4 builds already had the flag while still printing `0.3.0`. See [JXL lossless mode](#jxl-lossless-mode).
+
 Windows currently implements CLI 0.3.0, including the boolean pairs and `preset set-default`; do not apply the macOS 0.1.0 limitations to it. Newer CLIs add commands not catalogued in this historical table; use installed `--help`. On Windows `--specified` is rejected, monitor depth uses 0–5, and preset/monitor commands reject global-only overrides such as metadata retention. See the Windows reference.
 
 Flags marked "0.2.0" below require the newer CLI.
@@ -63,6 +65,7 @@ Every flag not given on the command line **inherits** from `--preset`, or, witho
 | `--keep-aspect` / `--no-keep-aspect`              | bool                                       | keep             | Lock aspect ratio when one axis is set. |
 | `--preserve-metadata` / `--no-metadata`           | bool                                       | inherited        | EXIF/ICC retention. `--no-metadata` is Pro-only. |
 | `--progressive` / `--no-progressive`              | bool                                       | inherited        | Progressive JPEG. `--no-progressive` needs 0.2.0. |
+| `--jxl-lossless` / `--no-jxl-lossless`            | bool                                       | inherited        | JPEG XL lossless mode; only acts when the output is JXL. **Probe `--help` first** — see [JXL lossless mode](#jxl-lossless-mode). |
 | `--tiff-compression <lzw\|zip>`                   | enum                                       | inherited        | TIFF output codec. **Dead on 0.1.0**; works on 0.2.0. |
 | `--location <original\|custom>`                   | enum                                       | inherited        | `original` = save next to input; `custom` = `--output`. Auto-set to `custom` if `--output` is given without explicit `--location`. |
 | `--output <dir>`                                  | path                                       | —                | Output directory. Forces `--location custom` when set. |
@@ -97,6 +100,20 @@ ON), an agent must never assume it is off. Safety rules:
 - Verify with `--dry-run --json` → `data.plan.option.overwrite`; a real run
   echoes the same via `data.option.overwrite` (0.2.0).
 
+### JXL lossless mode
+
+Requires CLI 0.4.0; gate on `zipic --help` listing `--jxl-lossless`. On a CLI without it the flag is unknown: bare `--jxl-lossless` **swallows the next argument** (e.g. eats an input path), and `--jxl-lossless=true` is silently ignored, producing an ordinary lossy JXL. If the probe fails, tell the user lossless JXL needs a newer Zipic instead of guessing.
+
+The value is inherited from the active preset like every other boolean, so pass `--no-jxl-lossless` when the user explicitly wants lossy JXL. It applies when the output is JXL (`--format jxl`, or `--format original` on a JXL source) and requires Pro like any JXL output. `--level` does not trade quality in this mode. Zipic routes each input by what it actually contains:
+
+| Source | Result |
+| --- | --- |
+| PNG, TIFF (uncompressed/LZW/ZIP), lossless WebP, lossless JXL | Pixel-exact JXL; 16-bit depth kept. |
+| JPEG | Reversible JPEG transcode — the original JPEG can be reconstructed byte-for-byte. With resizing, or a JPEG libjxl cannot transcode, it falls back to pixel-exact encoding of the decoded image. `--no-metadata` strips EXIF/XMP/comments first but keeps ICC and orientation. |
+| Lossy JXL, JPEG-reconstruction JXL, lossy WebP, HEIC, AVIF, JPEG-compressed TIFF | **Skipped**: no output written, source kept. Lossless can't recover lost detail and would only grow the file. |
+
+A skipped row is not a failure and not a success. Its `output` is the **source path itself** (nothing new was written), and it is excluded from `completed_count`. Report it with its `skip_reason`. If the user still wants those files as JXL, re-run **only the skipped inputs** with `--no-jxl-lossless` (lossy). Warn them first: re-encoding an already-lossy WebP/HEIC/AVIF to JXL often makes it **larger** and loses a little more quality. Don't re-run the whole batch. Lossless output is often larger than the lossy alternative and can exceed the source for already-tight PNGs; read `saved_pct`/`kept_source` rather than promising savings.
+
 ### compress JSON response
 
 Success (after a real run):
@@ -121,6 +138,7 @@ Success (after a real run):
       }
     ],
     "completed_count": 1,
+    "skipped_count": 0,             // 0.4.0
     "total_urls": 1,
     "option": { "level": 3, "output_format": "webp", "overwrite": false,
                 "add_suffix": true, "suffix": "-min", "...": "..." }
@@ -134,7 +152,7 @@ check `option.overwrite` to know whether a conversion deleted its sources.
 `state` values (inspect each result, not just top-level `isError`):
 - `success` — compressed, output file written.
 - `kept_source` — compressed result was larger than the input, so the original was kept.
-- `skipped` — already optimized; no new compression was needed.
+- `skipped` — JXL lossless mode declined an already-lossy source; no output was written and the source is untouched. The row carries `skip_reason` (stable machine code: `lossy_jxl` \| `jpeg_reconstructed_jxl` \| `lossy_source`) and `skip_detail` (English explanation, not localized). `data.skipped_count` totals them.
 - `failed`, `cancelled`, `quota_exceeded` — incomplete or failed output; surface the result's `error` text when present. Do not label unknown states as success.
 
 Dry run:
@@ -171,7 +189,7 @@ zipic preset <subcommand> [args]
 | `import <file>`                                         | Import preset JSON; auto-renames on name collision (`<name> (Imported)`, `(Imported 2)`, …). |
 | `export <name-or-id> --output <file>`                   | Export to JSON.                                 |
 
-`create` accepts the same `--level/--format/--width/--height/--scale/--suffix/--subfolder/--output/--location` flags as `compress`, plus the boolean pairs `--keep-aspect/--no-keep-aspect`, `--overwrite/--no-overwrite`, `--progressive/--no-progressive`, `--add-suffix/--no-suffix`, `--add-subfolder/--no-subfolder` (negative forms need 0.2.0). They're baked into the preset; unspecified values inherit from the GUI's current settings. Current Windows rejects `--preserve-metadata/--no-metadata` here because metadata retention is global, not stored in presets; use it only on `compress` for a one-run override.
+`create` accepts the same `--level/--format/--width/--height/--scale/--suffix/--subfolder/--output/--location` flags as `compress`, plus the boolean pairs `--keep-aspect/--no-keep-aspect`, `--overwrite/--no-overwrite`, `--progressive/--no-progressive`, `--add-suffix/--no-suffix`, `--add-subfolder/--no-subfolder` (negative forms need 0.2.0), and `--jxl-lossless/--no-jxl-lossless` where `--help` lists it (`monitor add/set` accept it too). They're baked into the preset; unspecified values inherit from the GUI's current settings. Current Windows rejects `--preserve-metadata/--no-metadata` here because metadata retention is global, not stored in presets; use it only on `compress` for a one-run override.
 
 ### preset JSON response
 
@@ -198,14 +216,14 @@ zipic preset <subcommand> [args]
 Reflects the GUI's current compression list, deduplicated by source path (re-compressing replaces the previous entry — it's a snapshot, not an append-only log).
 
 ```
-zipic list [--limit N] [--status all|success|failed]
+zipic list [--limit N] [--status all|success|failed|skipped]
 zipic list clear
 ```
 
 | Flag             | Type | Default | Notes                                |
 | ---------------- | ---- | ------- | ------------------------------------ |
 | `--limit <N>`    | int  | 0 (all) | Cap the returned items.              |
-| `--status <v>`   | enum | `all`   | Filter by `success` / `failed`.      |
+| `--status <v>`   | enum | `all`   | Filter by `success` / `failed` / `skipped` (`skipped` needs 0.4.0; older CLIs exit 64). |
 
 `list` JSON:
 
