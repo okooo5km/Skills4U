@@ -2,7 +2,7 @@
 name: orchard
 description: "Use the local Orchard app to interact with macOS Apple apps and services: Calendar, Reminders, Clock, Mail, Contacts, Notes, Music, Weather, Messages, Location/Maps, and Apple Shortcuts. Two execution paths reach the same running Orchard.app: the `orchard` CLI (default — use this if you have a Bash/shell tool, e.g. Claude Code, Codex CLI, Cursor) and a stdio MCP server, `orchard mcp`, exposed as prefixed MCP tools (fallback for sandboxes that cannot run the macOS CLI, e.g. Claude Cowork, bridged through Claude Desktop). Use when a task asks to read or manage local calendar events, reminders, Apple Mail, contacts, notes, iMessage/SMS, Apple Music playback/library, weather, current time/timezones, geocoding, routes, current location, or local Shortcuts."
 metadata:
-  version: "0.7.7"
+  version: "0.7.8"
   updated: "2026-10-06"
   tested_with:
     orchard_app: "0.6.4 (19)"
@@ -172,7 +172,7 @@ Notes content is HTML for create/update. If the user gives Markdown, convert it 
 
 Reads accept `--chat-guid`, `--contact`, `--query`, date range, `--from-me`, `--has-attachments`, `--offset`; `--type thread --message-guid` returns a reply thread. Tapbacks come aggregated as `reactions`. If a send reports an ambiguous contact with candidates, pick one and re-send with its `chat_guid` — never guess.
 
-Attachments: `messages send ... --attachment PATH` (repeatable, up to 10 files, 100MB each; `--text` optional). Read `disposition` and `safe_to_retry` in every send result: retry only when `safe_to_retry` is true. `sent_verified` = done; `sent_unverified` = may have been sent, check with `messages read` instead of resending; `failed_not_sent` = nothing sent; `failed_partial` = some items already sent, don't resend everything; `failed_after_send` = Messages flagged it failed (try SMS or check the number).
+Attachments: `messages send ... --attachment PATH` (repeatable, up to 10 files, 100MB each; `--text` optional). Read `disposition` and `safe_to_retry` in every send result: retry only when `safe_to_retry` is true. `sent_verified` = done; `sent_unverified` = may have been sent: re-check later with `messages read` (e.g. `--since-rowid`) and read `send_status` on your outgoing message (`sent`/`delivered`/`pending`/`failed` + `error_code`) instead of resending; `failed_not_sent` = nothing sent; `failed_partial` = some items already sent, don't resend everything; `failed_after_send` = Messages flagged it failed (iMessage: try SMS or check the number; SMS relayed via iPhone: the user can retry it in Messages). SMS/RCS sends wait up to ~20s for confirmation.
 
 What's new since last check: every `type=messages` result has a `cursor`. Save it, then `messages read --type messages --since-rowid CURSOR --json` returns only newer messages (oldest first) plus `new_reactions` and `updated` (edited/retracted); repeat with the new cursor while `has_more`. Bootstrap by reading one page without `--since-rowid`. Not combinable with `--offset`.
 
