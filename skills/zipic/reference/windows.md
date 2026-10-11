@@ -86,7 +86,8 @@ SSH, services and scheduled jobs without an interactive desktop can fail GUI aut
 - HEIC uses Windows system codecs; HEIF Image Extensions and HEVC Video Extensions may be needed. Report the per-file failure and follow Zipic's codec-install guidance rather than declaring all HEIC inputs/outputs available.
 - `monitor --max-depth` uses **0–5** on Windows: 0 means root only, 1 includes direct child folders. Do not transfer the macOS depth scale.
 - `preset create/update` and `monitor add/set` reject global-only flags `--preserve-metadata/--no-metadata`, `--skip-optimized/--no-skip-optimized` and `--jpeg-background`. They can be one-run `compress` overrides; persistent changes use `config set` only when requested.
-- JXL lossless (`--jxl-lossless`) is being brought to Windows with the same contract as macOS. Gate it on `& $exe --help` listing `jxl-lossless` (the version alone may not reflect Windows' rollout); an unsupported build parses the bare flag as taking a value and eats the next argument.
+- JXL lossless (`--jxl-lossless`) and the max file size cap (`--max-size`, `--keep-dimensions`) ship in Windows CLI 0.5.1 (Zipic 1.10.4.0) with the same contract as macOS, including `max_size_met` and the `[over size limit]` text marker. Gate each on `& $exe --help` listing the flag: older packages print `0.3.0` and have neither. The size cap ignores TIFF, PDF, SVG, ICO and JXL lossless output.
+- CLI 0.5.1 checks flags strictly: an unknown flag, or a value flag without its value, exits 64 with a stderr message naming the flag and sends nothing to the app.
 - Raycast, App Intents/Siri, Apple Shortcuts and iCloud integration are macOS features. Do not recommend them as Windows steps.
 - Windows URL Scheme differs from macOS (notably `ratio`); read [url-scheme.md](url-scheme.md) before using it. The CLI provides reliable result inspection and should remain the first route.
 

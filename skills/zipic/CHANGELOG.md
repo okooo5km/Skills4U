@@ -5,6 +5,22 @@ All notable changes to the `zipic` skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 
+## [2.4.0] — 2026-10-11
+
+### Added
+- Max file size cap (zipic-cli 0.5.0, Pro): `--max-size <size>` / `--no-max-size` and `--keep-dimensions` / `--no-keep-dimensions` on `compress`, `preset create/update` and `monitor add/set`; 1000-based units and the 1KB–10GB range; the quality-ceiling search and scale-down fallback; interaction with explicit resizing and format conversion; formats that ignore the cap.
+- `max_size_met` result contract: a missed cap stays `state: "success"` with exit 0, so the skill checks the field per row, reports misses and dimension changes, and treats a missing field as "no cap applied".
+- `pro_required` payload for an explicit `--max-size` from a free user (`blocked_option`, `feature`), the `Compression-MaxFileSize*` config keys, and the macOS URL Scheme parameters `maxSize` / `keepDimensions`.
+- Trigger phrases for target-size requests, and evaluation scenarios for a size cap with a miss and for a CLI that predates the flag.
+
+### Fixed
+- 2.3.0 notes said Zipic 1.10.4 ships zipic-cli 0.4.0; the released build ships 0.5.0.
+- Windows was described as CLI 0.3.0 with JXL lossless pending. Windows Zipic 1.10.4.0 ships CLI 0.5.1 with JXL lossless, the size cap and strict flag checking (unknown flags exit 64).
+
+### Notes
+- Verified by real runs on macOS (zipic-cli 0.5.0, Zipic 1.10.4) and Windows (zipic-cli 0.5.1, Zipic 1.10.4.0): met, missed with `--keep-dimensions`, scale-down fallback, WebP/PNG/AVIF conversion, ignored JXL lossless, usage errors and `--dry-run` echo.
+- On a macOS CLI older than 0.5.0 `--max-size 500KB` is dropped without an error, so the skill never passes it blindly. Not exercised: the Windows URL Scheme and Apple Shortcuts parameters.
+
 ## [2.3.0] — 2026-10-07
 
 ### Added
@@ -16,8 +32,8 @@ Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATC
 - `skipped` was described as "already optimized"; it now means JXL lossless declined the source and wrote nothing.
 
 ### Notes
-- Ships with zipic-cli 0.4.0 (Zipic 1.10.4 on macOS). The skill still confirms via `--help`, because pre-release builds had the flag under `0.3.0`. On a CLI without it the bare flag swallows the next argument, so the skill never passes it blindly.
-- Windows is adopting the same contract; the skill gates it on `--help` on both platforms.
+- Written against zipic-cli 0.4.0. The released Zipic 1.10.4 for macOS ships zipic-cli 0.5.0, which includes this mode. The skill still confirms via `--help`, because pre-release builds had the flag under `0.3.0`. On a CLI without it the bare flag swallows the next argument, so the skill never passes it blindly.
+- Windows gained the same contract in CLI 0.5.1 (Zipic 1.10.4.0); the skill gates it on `--help` on both platforms.
 
 ## [2.2.0] — 2026-10-01
 

@@ -7,9 +7,10 @@ Check `zipic --version` and `--help`; CLI versions are independent of app versio
 - **0.1.0** (Zipic 1.9.5): baseline. `--overwrite` is one-way (no off switch), `--keep-hierarchy` / `--tiff-compression` / `--autocopy` are accepted but **silently dead**, `--<flag>=false` forms are silently dropped, and `preset set-default` returns `not_implemented`.
 - **0.2.0** (later Zipic builds): full boolean pairs (`--no-overwrite`, `--no-progressive`, `--no-keep-hierarchy`) plus explicit `--<flag>=true|false` forms, the three dead flags actually work, invalid values exit 64 instead of being ignored, compress responses echo the resolved option, and `preset set-default` works.
 
-- **0.4.0** (Zipic 1.10.4 on macOS; Windows is adopting the same contract): JPEG XL lossless — `--jxl-lossless` / `--no-jxl-lossless`, the `skipped` result state with `skip_reason`, and `list --status skipped`. Confirm with `zipic --help` containing `jxl-lossless` as well: some pre-release 1.10.4 builds already had the flag while still printing `0.3.0`. See [JXL lossless mode](#jxl-lossless-mode).
+- **0.4.0** (macOS pre-release 1.10.4 builds): JPEG XL lossless — `--jxl-lossless` / `--no-jxl-lossless`, the `skipped` result state with `skip_reason`, and `list --status skipped`. Confirm with `zipic --help` containing `jxl-lossless` as well: some pre-release builds already had the flag while still printing `0.3.0`. See [JXL lossless mode](#jxl-lossless-mode).
+- **0.5.0** (released Zipic 1.10.4 on macOS): max file size — `--max-size` / `--no-max-size`, `--keep-dimensions` / `--no-keep-dimensions`, and `max_size_met` on result rows. See [Max file size](#max-file-size).
 
-Windows currently implements CLI 0.3.0, including the boolean pairs and `preset set-default`; do not apply the macOS 0.1.0 limitations to it. Newer CLIs add commands not catalogued in this historical table; use installed `--help`. On Windows `--specified` is rejected, monitor depth uses 0–5, and preset/monitor commands reject global-only overrides such as metadata retention. See the Windows reference.
+Windows Zipic 1.10.4.0 ships CLI **0.5.1** with the same JXL lossless and max file size contract (both exercised on a real install). Older Windows packages print `0.3.0` and have neither flag. Do not apply the macOS 0.1.0 limitations to Windows. Newer CLIs add commands not catalogued in this historical table; use installed `--help`. On Windows `--specified` is rejected, monitor depth uses 0–5, and preset/monitor commands reject global-only overrides such as metadata retention. See the Windows reference.
 
 Flags marked "0.2.0" below require the newer CLI.
 
@@ -66,6 +67,8 @@ Every flag not given on the command line **inherits** from `--preset`, or, witho
 | `--preserve-metadata` / `--no-metadata`           | bool                                       | inherited        | EXIF/ICC retention. `--no-metadata` is Pro-only. |
 | `--progressive` / `--no-progressive`              | bool                                       | inherited        | Progressive JPEG. `--no-progressive` needs 0.2.0. |
 | `--jxl-lossless` / `--no-jxl-lossless`            | bool                                       | inherited        | JPEG XL lossless mode; only acts when the output is JXL. **Probe `--help` first** — see [JXL lossless mode](#jxl-lossless-mode). |
+| `--max-size <size>` / `--no-max-size`             | size                                       | inherited        | Pro. Hard cap per output file; `--no-max-size` drops an inherited cap. **Probe `--help` first** — see [Max file size](#max-file-size). |
+| `--keep-dimensions` / `--no-keep-dimensions`      | bool                                       | allow scaling    | With a size cap: never scale down, only lower quality. |
 | `--tiff-compression <lzw\|zip>`                   | enum                                       | inherited        | TIFF output codec. **Dead on 0.1.0**; works on 0.2.0. |
 | `--location <original\|custom>`                   | enum                                       | inherited        | `original` = save next to input; `custom` = `--output`. Auto-set to `custom` if `--output` is given without explicit `--location`. |
 | `--output <dir>`                                  | path                                       | —                | Output directory. Forces `--location custom` when set. |
@@ -114,6 +117,39 @@ The value is inherited from the active preset like every other boolean, so pass 
 
 A skipped row is not a failure and not a success. Its `output` is the **source path itself** (nothing new was written), and it is excluded from `completed_count`. Report it with its `skip_reason`. If the user still wants those files as JXL, re-run **only the skipped inputs** with `--no-jxl-lossless` (lossy). Warn them first: re-encoding an already-lossy WebP/HEIC/AVIF to JXL often makes it **larger** and loses a little more quality. Don't re-run the whole batch. Lossless output is often larger than the lossy alternative and can exceed the source for already-tight PNGs; read `saved_pct`/`kept_source` rather than promising savings.
 
+### Max file size
+
+Pro. Requires CLI 0.5.0; gate on `zipic --help` listing `--max-size`. On a macOS CLI without it the flags are unknown and nothing errors: `--max-size 500KB` is dropped silently (the run finishes with no cap applied), while bare `--keep-dimensions` / `--no-max-size` swallow the next argument. Windows CLI 0.5.1 instead rejects any unknown flag with exit 64. If the probe fails, tell the user a size cap needs a newer Zipic; don't emulate it by looping over `--level`.
+
+**Value**: 1000-based like Finder — `500KB`, `1.5MB`, `2GB`, also `K`/`M`/`G`, case-insensitive, optional space (`"2 mb"`), decimals allowed; a bare number is bytes (`800000`). Range 1KB–10GB. `500KiB`, a bare `500` or `--max-size` together with `--no-max-size` exit 64 with a stderr-only message.
+
+**What it does**, per output file:
+
+1. Encodes once at `--level`. If that already fits, the result is identical to a run without the cap — the level acts as a quality ceiling, never raised to fill the budget.
+2. Otherwise searches for the highest quality that fits, re-encoding a few times (AVIF and JXL get a smaller budget because each encode is slow, so they may land further under the cap).
+3. If the lowest quality is still too big, **scales the image down** and retries a few rounds. The output then has smaller pixel dimensions than the source — say so in the report. `--keep-dimensions` forbids this step.
+
+An explicit `--width`/`--height`/`--scale`/`--longest-side` is applied first; the cap then works on the resized image. Combining a resize with the cap is the predictable way to hit a small budget at a known size. PNG has little quality range, so a tight PNG cap reaches for scaling early (observed: a 2400×1600 PNG capped at 500KB came back 1007×671); prefer `--format webp`/`jpeg` or a looser cap when dimensions matter.
+
+**Ignored** (no cap, no `max_size_met`): TIFF, PDF and SVG output, ICNS (macOS) / ICO (Windows), and JXL lossless mode.
+
+**Result contract** — the cap never fails a file:
+
+- A row whose format honors the cap gains `max_size_met`. `true`: `output_bytes` ≤ cap. `false`: Zipic wrote its smallest attempt, which is **over** the cap (text mode appends `[over size limit]`). It is still `state: "success"`, exit 0 and counted in `completed_count`.
+- Misses happen with `--keep-dimensions`, or with caps too small for any image (1KB on a photo gave a 31×21, 3.7KB file). Report each miss with its actual `output_bytes`, then offer: allow scaling, a more compact format (WebP/AVIF), an explicit resize, or a larger cap. Do not silently retry.
+- No `max_size_met` on a successful row means no cap was applied to it (ignored format, no cap in effect, or a CLI that dropped the flag) — never report that as "fits".
+- `data.option` / `data.plan.option` echo `max_size` (bytes) and `keep_dimensions` only while a cap is in effect; `--dry-run` confirms the parsed value before a real run.
+
+**Inheritance and Pro**: like every option the cap is inherited from `--preset` or the active preset, so pass `--no-max-size` when the user wants an uncapped run. A free user passing `--max-size` gets `pro_required` (`error.data.blocked_option: "max-size"`, `feature: "max_file_size"`); a cap merely inherited from a preset is ignored for free users without an error. `preset create/update` and `monitor add/set` take the same four flags; `preset update --no-max-size` clears a saved cap. The GUI-wide default lives in `config` keys `Compression-MaxFileSize` (bytes or `500KB`), `Compression-MaxFileSize-Enabled` and `Compression-MaxFileSize-KeepDimensions` — change them only when the user asks for a persistent default.
+
+```bash
+# Hard cap, sources kept; check max_size_met per row
+zipic compress --json --format webp --max-size 500KB --no-overwrite --output /tmp/out/ /path/photo.png
+
+# Must keep pixel dimensions: quality only, may miss the cap
+zipic compress --json --max-size 200KB --keep-dimensions --no-overwrite --output /tmp/out/ /path/photo.jpg
+```
+
 ### compress JSON response
 
 Success (after a real run):
@@ -134,6 +170,7 @@ Success (after a real run):
         "output_bytes": 56789,
         "saved_pct": 54,
         "state": "success",          // or "kept_source" | "failed" | other
+        "max_size_met": true,        // 0.5.0, only when a size cap applied to this row
         "started_at": "2026-05-08T10:00:00Z"
       }
     ],
@@ -150,7 +187,7 @@ Success (after a real run):
 check `option.overwrite` to know whether a conversion deleted its sources.
 
 `state` values (inspect each result, not just top-level `isError`):
-- `success` — compressed, output file written.
+- `success` — compressed, output file written. With a size cap, also read `max_size_met`: `false` means the file was written but is over the cap.
 - `kept_source` — compressed result was larger than the input, so the original was kept.
 - `skipped` — JXL lossless mode declined an already-lossy source; no output was written and the source is untouched. The row carries `skip_reason` (stable machine code: `lossy_jxl` \| `jpeg_reconstructed_jxl` \| `lossy_source`) and `skip_detail` (English explanation, not localized). `data.skipped_count` totals them.
 - `failed`, `cancelled`, `quota_exceeded` — incomplete or failed output; surface the result's `error` text when present. Do not label unknown states as success.
@@ -189,7 +226,7 @@ zipic preset <subcommand> [args]
 | `import <file>`                                         | Import preset JSON; auto-renames on name collision (`<name> (Imported)`, `(Imported 2)`, …). |
 | `export <name-or-id> --output <file>`                   | Export to JSON.                                 |
 
-`create` accepts the same `--level/--format/--width/--height/--scale/--suffix/--subfolder/--output/--location` flags as `compress`, plus the boolean pairs `--keep-aspect/--no-keep-aspect`, `--overwrite/--no-overwrite`, `--progressive/--no-progressive`, `--add-suffix/--no-suffix`, `--add-subfolder/--no-subfolder` (negative forms need 0.2.0), and `--jxl-lossless/--no-jxl-lossless` where `--help` lists it (`monitor add/set` accept it too). They're baked into the preset; unspecified values inherit from the GUI's current settings. Current Windows rejects `--preserve-metadata/--no-metadata` here because metadata retention is global, not stored in presets; use it only on `compress` for a one-run override.
+`create` accepts the same `--level/--format/--width/--height/--scale/--suffix/--subfolder/--output/--location/--max-size` flags as `compress`, plus the boolean pairs `--keep-aspect/--no-keep-aspect`, `--overwrite/--no-overwrite`, `--progressive/--no-progressive`, `--add-suffix/--no-suffix`, `--add-subfolder/--no-subfolder` (negative forms need 0.2.0), and `--jxl-lossless/--no-jxl-lossless`, `--keep-dimensions/--no-keep-dimensions` and `--no-max-size` where `--help` lists them (`monitor add/set` accept them too). They're baked into the preset; unspecified values inherit from the GUI's current settings. Current Windows rejects `--preserve-metadata/--no-metadata` here because metadata retention is global, not stored in presets; use it only on `compress` for a one-run override.
 
 ### preset JSON response
 
@@ -284,6 +321,7 @@ Triggers:
 - Input file is SVG / APNG / animated PNG / AVIF / TIFF / ICNS / JXL while not activated → `direction: "input"`.
 - Free-tier daily quota exceeded → `remaining` / `requested` populated.
 - `preset create` while user already has 1 custom preset → quota-style payload.
+- Explicit `--max-size` on `compress` / `preset create` / `preset update` while not activated → `blocked_option: "max-size"`, `feature: "max_file_size"`.
 
 ## CLI vs URL Scheme matrix
 
@@ -292,6 +330,7 @@ Triggers:
 | Per-file structured results (sizes, %)  | ✅  | ❌         |
 | Exit code / `isError`                   | ✅  | ❌         |
 | Dry run                                 | ✅  | ❌         |
+| Size cap with `max_size_met` per file   | ✅  | cap only, no result (macOS) |
 | Presets (list/show/create/delete/...)   | ✅  | ❌         |
 | Compression history (`list`)            | ✅  | ❌         |
 | Pro gate as structured error            | ✅  | (silent / GUI alert) |
