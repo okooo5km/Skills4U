@@ -7,7 +7,7 @@ description: |
 license: MIT
 compatibility: macOS with Zipic.app >= 1.9.5 for CLI (>= 1.9.0 for SVG via URL Scheme), or Windows 10 build 19041+ / Windows 11 with packaged Zipic and its zipic.exe execution alias. Windows examples support PowerShell 5.1 and 7. No native Linux CLI; WSL requires Windows interop and Windows-accessible paths.
 metadata:
-  version: 2.4.2
+  version: 2.4.3
   author: 十里 & FRIDAY
   homepage: https://zipic.app
   changelog: ./CHANGELOG.md
@@ -80,7 +80,7 @@ Read the `route` field:
 
 | `route`          | Action |
 | ---------------- | ------ |
-| `cli`            | Re-run the CLI; it auto-launches Zipic and waits ~8 s for the socket. |
+| `cli`            | Re-run the CLI; it auto-launches Zipic and waits for the socket (how long depends on the CLI: `reference/cli.md` → Versions). |
 | `install_cli`    | CLI binary missing — tell user: Zipic menu bar → "Install zipic CLI". Use Fallback below for now. |
 | `url_scheme`     | Zipic < 1.9.5, no CLI exists — tell user to upgrade. Use Fallback below. |
 | `halt_no_app`    | Zipic not installed — suggest `brew install --cask zipic` or https://zipic.app. |

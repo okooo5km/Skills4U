@@ -5,6 +5,20 @@ All notable changes to the `zipic` skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 
+## [2.4.3] — 2026-10-12
+
+### Added
+- How to get a newer CLI: it ships inside the app, so a failed flag gate or an older `zipic --version` is fixed by updating Zipic (in-app update or zipic.app on macOS, Microsoft Store on Windows); the macOS symlink needs no reinstall.
+- An older Windows CLI can copy a corrupt or 0-byte file to the output unchanged; added to the Versions table so an output file there is not read as a compressed result.
+
+### Fixed
+- `SKILL.md` still said the macOS CLI waits about 8 s for the GUI socket; the wait depends on the CLI version and now points at the Versions table.
+- `reference/resources.md` quoted page counts for `llms.txt` that had gone stale; the counts are gone.
+
+### Notes
+- zipic-cli 0.5.1 is now public on both platforms. The Windows items (corrupt PNG is `failed`, empty file is `skipped`, no 100% saving on non-success rows, `completed_count` counts real successes) come from the Windows release notes and match the 0.5.1 row already in the table.
+- Re-checked against the zipic-cli 0.5.1 binary shipped in the public macOS release: top-level help lists every flag the skill documents, and unknown flags, valued booleans, missing values, `preset delete --dry-run` and `--help` after a subcommand behave as the Versions table says.
+
 ## [2.4.2] — 2026-10-11
 
 ### Changed

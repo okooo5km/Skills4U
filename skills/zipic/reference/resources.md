@@ -68,4 +68,4 @@ All 20 docs pages have a Chinese mirror at `https://docs.zipic.app/zh-cn/<same-p
 
 ## Discovery fallback
 
-If a user question doesn't match any topic above, fetch `https://zipic.app/llms.txt` — it indexes 19 doc pages, 46 blog posts, and 30 release notes with a one-line description per entry, so you can find the right page without crawling.
+If a user question doesn't match any topic above, fetch `https://zipic.app/llms.txt` — it indexes every doc page, blog post and release note with a one-line description per entry, so you can find the right page without crawling.
