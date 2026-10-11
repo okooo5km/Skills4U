@@ -5,6 +5,23 @@ All notable changes to the `zipic` skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 
+## [2.4.1] — 2026-10-11
+
+### Changed
+- CLI version numbers now live in one table, `reference/cli.md` → Versions. `SKILL.md`, the flag tables, the Windows and URL Scheme references and the evals describe the current contract and gate flags on the top-level `zipic --help` instead of repeating numbers; app-version-to-CLI-version claims are gone.
+
+### Added
+- Version-gated behavior of zipic-cli 0.5.1: strict flag checking, `--help` after a subcommand, `saved_pct` only on `success` rows, 30 s GUI launch wait — and what older CLIs do instead (unknown flags pass silently, `compress <file> --help` compresses the file).
+- The second kind of `skipped` (already optimized, no `skip_reason`) on Windows, and that macOS returns no row for it.
+- Reading rules: `total_urls` counts path arguments, empty `results` with exit 0 means nothing was processed, `saved_pct` is reported for `success` rows only.
+
+### Fixed
+- 2.4.0 said the Windows store build 1.10.4.0 ships zipic-cli 0.5.1 with strict flag checking. It ships 0.5.0, which accepts unknown flags silently; 0.5.1 was observed on a development build.
+- Windows launch wait was stated as a flat 8 seconds.
+
+### Notes
+- Windows facts for CLI ≤ 0.5.0 come from the Windows-side review of 2.4.0; macOS rows (`total_urls`, empty results, no row for already-optimized files, `compress --help` behavior) were re-run on zipic-cli 0.5.0.
+
 ## [2.4.0] — 2026-10-11
 
 ### Added
@@ -15,10 +32,10 @@ Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATC
 
 ### Fixed
 - 2.3.0 notes said Zipic 1.10.4 ships zipic-cli 0.4.0; the released build ships 0.5.0.
-- Windows was described as CLI 0.3.0 with JXL lossless pending. Windows Zipic 1.10.4.0 ships CLI 0.5.1 with JXL lossless, the size cap and strict flag checking (unknown flags exit 64).
+- Windows was described as CLI 0.3.0 with JXL lossless pending; current Windows builds have JXL lossless and the size cap. (This entry originally named CLI 0.5.1 and strict flag checking for the store build — wrong, corrected in 2.4.1.)
 
 ### Notes
-- Verified by real runs on macOS (zipic-cli 0.5.0, Zipic 1.10.4) and Windows (zipic-cli 0.5.1, Zipic 1.10.4.0): met, missed with `--keep-dimensions`, scale-down fallback, WebP/PNG/AVIF conversion, ignored JXL lossless, usage errors and `--dry-run` echo.
+- Verified by real runs on macOS (zipic-cli 0.5.0) and on a Windows development build (zipic-cli 0.5.1): met, missed with `--keep-dimensions`, scale-down fallback, WebP/PNG/AVIF conversion, ignored JXL lossless, usage errors and `--dry-run` echo.
 - On a macOS CLI older than 0.5.0 `--max-size 500KB` is dropped without an error, so the skill never passes it blindly. Not exercised: the Windows URL Scheme and Apple Shortcuts parameters.
 
 ## [2.3.0] — 2026-10-07
@@ -33,7 +50,7 @@ Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATC
 
 ### Notes
 - Written against zipic-cli 0.4.0. The released Zipic 1.10.4 for macOS ships zipic-cli 0.5.0, which includes this mode. The skill still confirms via `--help`, because pre-release builds had the flag under `0.3.0`. On a CLI without it the bare flag swallows the next argument, so the skill never passes it blindly.
-- Windows gained the same contract in CLI 0.5.1 (Zipic 1.10.4.0); the skill gates it on `--help` on both platforms.
+- Windows has the same contract; the skill gates it on `--help` on both platforms.
 
 ## [2.2.0] — 2026-10-01
 

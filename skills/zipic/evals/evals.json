@@ -144,10 +144,10 @@
       "id": 11,
       "name": "jxl-lossless-mixed-sources",
       "prompt": "把 ~/Pictures/归档 里的图片全部无损转成 JPEG XL，原图不要动，结果放到 ~/Pictures/归档-jxl。里面有 PNG、JPEG、HEIC 和一些 WebP。",
-      "expected_output": "Confirms --jxl-lossless support (CLI >= 0.4.0 and/or --help lists it) before using the flag.; Uses --format jxl --jxl-lossless with --output to a separate directory and --no-overwrite (or equivalent source-preserving route).; Explains that PNG/lossless sources become pixel-exact JXL and JPEGs are reversibly transcoded.; Reports state=skipped rows (e.g. HEIC/lossy WebP) separately from failures, citing skip_reason, and does not count them as successes.; Offers to re-run only the skipped inputs with --no-jxl-lossless instead of re-running the whole batch.",
+      "expected_output": "Confirms the top-level zipic --help lists jxl-lossless before using the flag.; Uses --format jxl --jxl-lossless with --output to a separate directory and --no-overwrite (or equivalent source-preserving route).; Explains that PNG/lossless sources become pixel-exact JXL and JPEGs are reversibly transcoded.; Reports state=skipped rows (e.g. HEIC/lossy WebP) separately from failures, citing skip_reason, and does not count them as successes.; Offers to re-run only the skipped inputs with --no-jxl-lossless instead of re-running the whole batch.",
       "files": [],
       "expectations": [
-        "Confirms --jxl-lossless support (CLI >= 0.4.0 and/or --help lists it) before using the flag.",
+        "Confirms the top-level zipic --help lists jxl-lossless before using the flag.",
         "Uses --format jxl --jxl-lossless with --output to a separate directory and --no-overwrite (or equivalent source-preserving route).",
         "Explains that PNG/lossless sources become pixel-exact JXL and JPEGs are reversibly transcoded.",
         "Reports state=skipped rows (e.g. HEIC/lossy WebP) separately from failures, citing skip_reason, and does not count them as successes.",
@@ -158,12 +158,12 @@
       "id": 12,
       "name": "jxl-lossless-old-cli",
       "prompt": "用 zipic 把 photo.png 转成无损 JXL。我的 zipic --version 是 0.3.0，--help 里没有 jxl-lossless。",
-      "expected_output": "Does not pass bare --jxl-lossless, explaining that an unsupported CLI would swallow the next argument (the input path).; Does not pretend --jxl-lossless=true or --level 1 yields lossless output on that build.; Tells the user lossless JXL requires a newer Zipic (CLI 0.4.0+) and to confirm via --help after updating.; Optionally offers a normal (lossy) JXL conversion with source preservation if the user wants it.",
+      "expected_output": "Does not pass bare --jxl-lossless, explaining that an unsupported CLI would swallow the next argument (the input path).; Does not pretend --jxl-lossless=true or --level 1 yields lossless output on that build.; Tells the user lossless JXL requires a newer Zipic and to confirm via the top-level --help after updating.; Optionally offers a normal (lossy) JXL conversion with source preservation if the user wants it.",
       "files": [],
       "expectations": [
         "Does not pass bare --jxl-lossless, explaining that an unsupported CLI would swallow the next argument (the input path).",
         "Does not pretend --jxl-lossless=true or --level 1 yields lossless output on that build.",
-        "Tells the user lossless JXL requires a newer Zipic (CLI 0.4.0+) and to confirm via --help after updating.",
+        "Tells the user lossless JXL requires a newer Zipic and to confirm via the top-level --help after updating.",
         "Optionally offers a normal (lossy) JXL conversion with source preservation if the user wants it."
       ]
     },
@@ -171,10 +171,10 @@
       "id": 13,
       "name": "max-size-cap-with-miss",
       "prompt": "把 ~/Desktop/商品图 里的图片都压到 200KB 以内，要上传到电商后台，尺寸不能变，原图别动。",
-      "expected_output": "Confirms --max-size support (CLI >= 0.5.0 and/or --help lists max-size) before using the flag.; Uses --max-size 200KB with --keep-dimensions (the user forbade resizing) instead of looping over --level values.; Preserves sources via --no-overwrite and/or a separate --output directory.; Checks max_size_met on every result row and does not treat state=success / exit 0 as proof the cap was met.; Lists files with max_size_met=false and their actual output_bytes, and offers options (allow scaling, WebP/AVIF, explicit resize, larger cap) rather than silently retrying or changing dimensions.; Surfaces pro_required with its upgrade/trial context if the user is not on Pro, without bypassing it.",
+      "expected_output": "Confirms the top-level zipic --help lists max-size before using the flag.; Uses --max-size 200KB with --keep-dimensions (the user forbade resizing) instead of looping over --level values.; Preserves sources via --no-overwrite and/or a separate --output directory.; Checks max_size_met on every result row and does not treat state=success / exit 0 as proof the cap was met.; Lists files with max_size_met=false and their actual output_bytes, and offers options (allow scaling, WebP/AVIF, explicit resize, larger cap) rather than silently retrying or changing dimensions.; Surfaces pro_required with its upgrade/trial context if the user is not on Pro, without bypassing it.",
       "files": [],
       "expectations": [
-        "Confirms --max-size support (CLI >= 0.5.0 and/or --help lists max-size) before using the flag.",
+        "Confirms the top-level zipic --help lists max-size before using the flag.",
         "Uses --max-size 200KB with --keep-dimensions (the user forbade resizing) instead of looping over --level values.",
         "Preserves sources via --no-overwrite and/or a separate --output directory.",
         "Checks max_size_met on every result row and does not treat state=success / exit 0 as proof the cap was met.",
@@ -186,12 +186,12 @@
       "id": 14,
       "name": "max-size-old-cli",
       "prompt": "用 zipic 把 banner.png 压到 500KB 以下。我的 zipic --version 是 0.4.0，--help 里搜不到 max-size。",
-      "expected_output": "Does not pass --max-size, --no-max-size or --keep-dimensions to that CLI, explaining the flag is unknown there and would be silently dropped or swallow the next argument.; Does not claim the output is under 500KB on the basis of exit 0 or state=success.; Tells the user the size cap requires a newer Zipic (CLI 0.5.0+, Pro) and to confirm via --help after updating.; If offering an interim route, makes it explicit (e.g. a normal compress or resize with the resulting output_bytes reported honestly) rather than an unannounced level-guessing loop presented as the cap feature.",
+      "expected_output": "Does not pass --max-size, --no-max-size or --keep-dimensions to that CLI, explaining the flag is unknown there and would be silently dropped or swallow the next argument.; Does not claim the output is under 500KB on the basis of exit 0 or state=success.; Tells the user the size cap requires a newer Zipic (and Pro) and to confirm via the top-level --help after updating.; If offering an interim route, makes it explicit (e.g. a normal compress or resize with the resulting output_bytes reported honestly) rather than an unannounced level-guessing loop presented as the cap feature.",
       "files": [],
       "expectations": [
         "Does not pass --max-size, --no-max-size or --keep-dimensions to that CLI, explaining the flag is unknown there and would be silently dropped or swallow the next argument.",
         "Does not claim the output is under 500KB on the basis of exit 0 or state=success.",
-        "Tells the user the size cap requires a newer Zipic (CLI 0.5.0+, Pro) and to confirm via --help after updating.",
+        "Tells the user the size cap requires a newer Zipic (and Pro) and to confirm via the top-level --help after updating.",
         "If offering an interim route, makes it explicit (e.g. a normal compress or resize with the resulting output_bytes reported honestly) rather than an unannounced level-guessing loop presented as the cap feature."
       ]
     }

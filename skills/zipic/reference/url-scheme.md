@@ -62,7 +62,7 @@ Windows accepts output formats `original/jpeg/png/webp/avif/heic/jxl`; do not co
 | `specified`    | bool                                                         | false   | macOS only. Windows has no corresponding setting; use `location=custom&directory=...`. |
 | `progressive`  | bool                                                         | inherited | Progressive JPEG. |
 | `jxlLossless`  | bool                                                         | inherited | JPEG XL lossless mode (newer builds; `jxl-lossless` also accepted). Lossy sources are skipped and kept, with no result reported back — prefer the CLI to see `skip_reason`. |
-| `maxSize`      | size: `500KB`, `1.5MB`, bytes; `0`/`none`/`off` clears       | inherited | macOS, Pro, builds with CLI 0.5.0+ (`max-size` also accepted). Hard cap per output file; invalid values are ignored. Nothing reports whether the cap was met — prefer the CLI's `max_size_met`. Not verified for the Windows scheme. |
+| `maxSize`      | size: `500KB`, `1.5MB`, bytes; `0`/`none`/`off` clears       | inherited | macOS, Pro, builds whose `zipic --help` lists `max-size` (`max-size` also accepted here). Hard cap per output file; invalid values are ignored. Nothing reports whether the cap was met — prefer the CLI's `max_size_met`. Not verified for the Windows scheme. |
 | `keepDimensions` | bool                                                       | false   | macOS. With `maxSize`: never scale down, only lower quality (`keep-dimensions` also accepted). |
 
 Anything Zipic doesn't recognize is ignored. Bool values must be the literals `true` or `false`.

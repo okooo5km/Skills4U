@@ -67,7 +67,7 @@ For UTF-8 JSON files, capture stdout then use `Set-Content -LiteralPath $jsonPat
 
 ## GUI and session requirements
 
-The CLI contacts `\\.\pipe\Zipic.Cli.<Windows-user-SID>`, automatically opens the packaged GUI and waits about 8 seconds. It is a client of the desktop app, not a headless compressor.
+The CLI contacts `\\.\pipe\Zipic.Cli.<Windows-user-SID>`, automatically opens the packaged GUI and waits for the pipe (8 s on older CLIs, 30 s on newer ones — [cli.md → Versions](cli.md#versions)). A cold start usually takes a few seconds; if a slow first launch exits 65 the GUI still comes up, so retry once. It is a client of the desktop app, not a headless compressor.
 
 After exit 65 / `gui_not_running`, check which package owns the executable alias, then open the intended installed Zipic **in the same user's interactive desktop**, let startup finish, and retry once. A read-only package lookup can resolve its Start entry without guessing an obsolete package ID:
 
@@ -86,8 +86,9 @@ SSH, services and scheduled jobs without an interactive desktop can fail GUI aut
 - HEIC uses Windows system codecs; HEIF Image Extensions and HEVC Video Extensions may be needed. Report the per-file failure and follow Zipic's codec-install guidance rather than declaring all HEIC inputs/outputs available.
 - `monitor --max-depth` uses **0–5** on Windows: 0 means root only, 1 includes direct child folders. Do not transfer the macOS depth scale.
 - `preset create/update` and `monitor add/set` reject global-only flags `--preserve-metadata/--no-metadata`, `--skip-optimized/--no-skip-optimized` and `--jpeg-background`. They can be one-run `compress` overrides; persistent changes use `config set` only when requested.
-- JXL lossless (`--jxl-lossless`) and the max file size cap (`--max-size`, `--keep-dimensions`) ship in Windows CLI 0.5.1 (Zipic 1.10.4.0) with the same contract as macOS, including `max_size_met` and the `[over size limit]` text marker. Gate each on `& $exe --help` listing the flag: older packages print `0.3.0` and have neither. The size cap ignores TIFF, PDF, SVG, ICO and JXL lossless output.
-- CLI 0.5.1 checks flags strictly: an unknown flag, or a value flag without its value, exits 64 with a stderr message naming the flag and sends nothing to the app.
+- JXL lossless (`--jxl-lossless`) and the max file size cap (`--max-size`, `--keep-dimensions`) follow the macOS contract, including `max_size_met` and the `[over size limit]` text marker. Gate each on the top-level `& $exe --help` listing the flag. The size cap ignores TIFF, PDF, SVG, ICO and JXL lossless output.
+- Flag strictness, subcommand `--help`, `saved_pct` on non-success rows and the launch wait changed between CLI versions; the single table is [cli.md → Versions](cli.md#versions). Until `& $exe --version` shows a CLI with strict flags, assume an unknown flag is accepted silently and never probe with `compress --help`.
+- `skipped` has two kinds on Windows: with `skip_reason` it is a JXL lossless skip; without it the file was already optimized with the same settings (`--skip-optimized`, default on) and reports `output_bytes: 0`. Details in [cli.md](cli.md#compress-json-response).
 - Raycast, App Intents/Siri, Apple Shortcuts and iCloud integration are macOS features. Do not recommend them as Windows steps.
 - Windows URL Scheme differs from macOS (notably `ratio`); read [url-scheme.md](url-scheme.md) before using it. The CLI provides reliable result inspection and should remain the first route.
 

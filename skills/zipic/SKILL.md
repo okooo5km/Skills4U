@@ -7,7 +7,7 @@ description: |
 license: MIT
 compatibility: macOS with Zipic.app >= 1.9.5 for CLI (>= 1.9.0 for SVG via URL Scheme), or Windows 10 build 19041+ / Windows 11 with packaged Zipic and its zipic.exe execution alias. Windows examples support PowerShell 5.1 and 7. No native Linux CLI; WSL requires Windows interop and Windows-accessible paths.
 metadata:
-  version: 2.4.0
+  version: 2.4.1
   author: 十里 & FRIDAY
   homepage: https://zipic.app
   changelog: ./CHANGELOG.md
@@ -33,7 +33,7 @@ Resolve `<skill-dir>` from this loaded skill's location; script paths are not re
 zipic compress --json [flags] <files-or-dirs>...
 ```
 
-`--json` is required — parse stdout separately from stderr. Capture the process exit code immediately (`$LASTEXITCODE` in PowerShell), then inspect `isError` and every `data.results[].state`; exit 0 alone does not prove every file succeeded. Report per-file `output_bytes`, `saved_pct` and errors. Pass directories directly; Zipic walks them recursively.
+`--json` is required — parse stdout separately from stderr. Capture the process exit code immediately (`$LASTEXITCODE` in PowerShell), then inspect `isError` and every `data.results[].state`; exit 0 alone does not prove every file succeeded. Report per-file `output_bytes`, errors, and `saved_pct` for `success` rows only (it is not meaningful on other states). An empty `results` with exit 0 means nothing was processed — say so instead of reporting success. Pass directories directly; Zipic walks them recursively.
 
 | Need                       | Flag |
 | -------------------------- | ---- |
@@ -43,12 +43,14 @@ zipic compress --json [flags] <files-or-dirs>...
 | Custom output directory    | `--output /tmp/out/` (auto-sets `--location custom`) |
 | Mirror source tree         | `--keep-hierarchy` |
 | Use a saved preset         | `--preset "Web 1x"` (explicit flags override) |
-| Keep sources on conversion | `--no-overwrite` (CLI ≥ 0.2.0) or `--output <dir>` (any version) |
+| Keep sources on conversion | `--no-overwrite` (gated) or `--output <dir>` (any version) |
 | Preview without running    | `--dry-run` |
-| Lossless JPEG XL           | `--format jxl --jxl-lossless` (CLI ≥ 0.4.0; confirm in `--help`) |
-| Cap output file size       | `--max-size 500KB` (Pro; CLI ≥ 0.5.0; confirm in `--help`) |
+| Lossless JPEG XL           | `--format jxl --jxl-lossless` (gated) |
+| Cap output file size       | `--max-size 500KB` (Pro; gated) |
 
-**Source-deletion warning**: flags you don't pass inherit from the user's *active preset*, and `overwrite` (GUI default ON) means a format conversion landing next to the source with the same base name **deletes the source file**. When the user didn't ask to replace sources: pass `--no-overwrite` (CLI ≥ 0.2.0, check `zipic --version`), or write to a separate `--output` dir — safe on every version. `--dry-run --json` echoes the effective value at `data.plan.option.overwrite`. On CLI 0.1.0 there is no reliable off switch (`--no-overwrite` is unknown and swallows the next argument) — use the `--output` route. Full contract: `reference/cli.md`.
+**Gated flags**: before passing one, confirm the top-level `zipic --help` lists it. Older CLIs accept unknown flags silently — the flag is dropped or swallows the next argument, and the run still exits 0. Probe only with `zipic --help`, never `zipic compress --help` (on older CLIs that can run the compression). Which version added what lives in one place: `reference/cli.md` → Versions.
+
+**Source-deletion warning**: flags you don't pass inherit from the user's *active preset*, and `overwrite` (GUI default ON) means a format conversion landing next to the source with the same base name **deletes the source file**. When the user didn't ask to replace sources: pass `--no-overwrite` (gated), or write to a separate `--output` dir — safe on every version. `--dry-run --json` echoes the effective value at `data.plan.option.overwrite`. If help doesn't list `--no-overwrite` there is no reliable off switch — use the `--output` route. Full contract: `reference/cli.md`.
 
 ```bash
 # Convert + resize + custom output
@@ -58,9 +60,9 @@ zipic compress --json --level 3 --format webp --width 1920 --output /tmp/out/ /p
 zipic compress --json --format webp --output /tmp/out/ /path/folder
 ```
 
-**Lossless JXL** (CLI ≥ 0.4.0): confirm `zipic --help` lists `jxl-lossless` before using it. On a CLI without the flag, the bare form swallows the next argument. Lossless sources become pixel-exact JXL and JPEGs are reversibly transcoded; already-lossy sources (lossy JXL/WebP, HEIC, AVIF, JPEG-in-TIFF) come back as `state: "skipped"` with `skip_reason`, with no output and the source untouched. Report skips separately from failures; re-run only those inputs with `--no-jxl-lossless` if the user accepts lossy, warning them that this often grows the file. Details: `reference/cli.md` → JXL lossless mode.
+**Lossless JXL** (gated): lossless sources become pixel-exact JXL and JPEGs are reversibly transcoded; already-lossy sources (lossy JXL/WebP, HEIC, AVIF, JPEG-in-TIFF) come back as `state: "skipped"` with `skip_reason`, with no output and the source untouched. A `skipped` row without `skip_reason` is a different case (already optimized, see `reference/cli.md`). Report skips separately from failures; re-run only those inputs with `--no-jxl-lossless` if the user accepts lossy, warning them that this often grows the file. Details: `reference/cli.md` → JXL lossless mode.
 
-**Size cap** (Pro; CLI ≥ 0.5.0): when the user names a target size, use `--max-size <size>` instead of guessing levels — confirm `zipic --help` lists `max-size` first. Units are 1000-based (`500KB`, `1.5MB`, bare number = bytes; 1KB–10GB). Zipic picks the highest quality that fits (`--level` is the ceiling) and, if the lowest quality is still too big, **scales the image down**; add `--keep-dimensions` when pixel size must not change. Every capped row carries `max_size_met`; a miss is still `state: "success"` with exit 0, so check the field on each row and report misses and any dimension change. Details: `reference/cli.md` → Max file size.
+**Size cap** (Pro; gated): when the user names a target size, use `--max-size <size>` instead of guessing levels. Units are 1000-based (`500KB`, `1.5MB`, bare number = bytes; 1KB–10GB). Zipic picks the highest quality that fits (`--level` is the ceiling) and, if the lowest quality is still too big, **scales the image down**; add `--keep-dimensions` when pixel size must not change. Every capped row carries `max_size_met`; a miss is still `state: "success"` with exit 0, so check the field on each row and report misses and any dimension change. Details: `reference/cli.md` → Max file size.
 
 **Exit codes**: `0` request completed / `1` runtime — read `error.code` from JSON / `64` bad args (may be stderr only) / `65` GUI unavailable after auto-launch. **`pro_required`** returns upgrade/trial context in `error.data` (`purchase_url`, `trial_available` when present) — surface it, don't bypass. Format gates vary by platform; Windows uses ICO rather than macOS ICNS. Per-file quota/failure states must also be reported.
 
@@ -84,7 +86,7 @@ Read the `route` field:
 | `halt_no_app`    | Zipic not installed — suggest `brew install --cask zipic` or https://zipic.app. |
 | `halt_not_macos` | This Bash detector is macOS-only. On Windows switch to `scripts/detect.ps1`; on WSL read the Windows reference. |
 
-On **Windows**, use the detection routes in [reference/windows.md](reference/windows.md). There is no separate CLI installer: check the app execution alias and `$env:LOCALAPPDATA\Microsoft\WindowsApps` before reinstalling. The CLI auto-launches the packaged GUI and waits about 8 seconds; on persistent exit 65, open Zipic in the same user's desktop session and retry once. Do not repeatedly retry failed compression batches or run the GUI's executable as a CLI.
+On **Windows**, use the detection routes in [reference/windows.md](reference/windows.md). There is no separate CLI installer: check the app execution alias and `$env:LOCALAPPDATA\Microsoft\WindowsApps` before reinstalling. The CLI auto-launches the packaged GUI and waits for its pipe; a cold start can time out with exit 65 while the GUI still comes up, so retry once. On persistent exit 65, open Zipic in the same user's desktop session and retry once. Do not repeatedly retry failed compression batches or run the GUI's executable as a CLI.
 
 ## Fallback: URL Scheme
 
@@ -93,7 +95,7 @@ On macOS, use only when `route` is `install_cli` or `url_scheme`; on Windows, re
 ## SVG and presets quick notes
 
 - **SVG optimization** (Pro; macOS Zipic ≥ 1.9.0, also supported on Windows): pass `.svg` files like any other input. Output stays SVG — never set `--format` on SVG. Level 1–2 conservative, 3–4 balanced, 5–6 may simplify paths visibly.
-- **Presets** (CLI only): `zipic preset list --json`, `zipic preset show "<name>" --json`, `zipic preset create --name "Web 2x" --level 3 --format webp --width 2400`. `zipic preset set-default "<name>"` (CLI ≥ 0.2.0) selects the active preset — the baseline a flag-less `compress` inherits. Free users may keep at most 1 custom preset.
+- **Presets** (CLI only): `zipic preset list --json`, `zipic preset show "<name>" --json`, `zipic preset create --name "Web 2x" --level 3 --format webp --width 2400`. `zipic preset set-default "<name>"` selects the active preset — the baseline a flag-less `compress` inherits. Free users may keep at most 1 custom preset.
 - **History** (CLI only): `zipic list --json --limit 20` / `zipic list clear`.
 
 ## Zipic-usage questions

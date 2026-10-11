@@ -1,18 +1,26 @@
 # Zipic CLI Reference
 
-Shared CLI contract, with historical macOS 0.1.0/0.2.0 behavior below. macOS Zipic.app >= 1.9.5 uses a UDS socket at `~/Library/Application Support/studio.5km.zipic/cli.sock`. Windows packaged Zipic exposes `zipic.exe` (target: `ZipicCli.exe`) and uses `\\.\pipe\Zipic.Cli.<Windows-user-SID>`. Both auto-launch the GUI and wait about 8 seconds. For Windows setup, PowerShell/UTF-8 handling, desktop-session requirements and differences, read [windows.md](windows.md).
+Shared CLI contract for macOS and Windows. macOS Zipic.app >= 1.9.5 uses a UDS socket at `~/Library/Application Support/studio.5km.zipic/cli.sock`. Windows packaged Zipic exposes `zipic.exe` (target: `ZipicCli.exe`) and uses `\\.\pipe\Zipic.Cli.<Windows-user-SID>`. Both auto-launch the GUI and wait for it. For Windows setup, PowerShell/UTF-8 handling, desktop-session requirements and differences, read [windows.md](windows.md).
 
-Check `zipic --version` and `--help`; CLI versions are independent of app versions. The historical macOS generations are:
+## Versions
 
-- **0.1.0** (Zipic 1.9.5): baseline. `--overwrite` is one-way (no off switch), `--keep-hierarchy` / `--tiff-compression` / `--autocopy` are accepted but **silently dead**, `--<flag>=false` forms are silently dropped, and `preset set-default` returns `not_implemented`.
-- **0.2.0** (later Zipic builds): full boolean pairs (`--no-overwrite`, `--no-progressive`, `--no-keep-hierarchy`) plus explicit `--<flag>=true|false` forms, the three dead flags actually work, invalid values exit 64 instead of being ignored, compress responses echo the resolved option, and `preset set-default` works.
+**This section is the only place CLI version numbers are recorded.** Everything else in the skill describes the current contract and points here. One CLI version means one contract on macOS and Windows; a row applies to whichever platform reports that version. The CLI version is independent of the app version: never infer a flag from the app's marketing version.
 
-- **0.4.0** (macOS pre-release 1.10.4 builds): JPEG XL lossless — `--jxl-lossless` / `--no-jxl-lossless`, the `skipped` result state with `skip_reason`, and `list --status skipped`. Confirm with `zipic --help` containing `jxl-lossless` as well: some pre-release builds already had the flag while still printing `0.3.0`. See [JXL lossless mode](#jxl-lossless-mode).
-- **0.5.0** (released Zipic 1.10.4 on macOS): max file size — `--max-size` / `--no-max-size`, `--keep-dimensions` / `--no-keep-dimensions`, and `max_size_met` on result rows. See [Max file size](#max-file-size).
+How to gate, in order:
 
-Windows Zipic 1.10.4.0 ships CLI **0.5.1** with the same JXL lossless and max file size contract (both exercised on a real install). Older Windows packages print `0.3.0` and have neither flag. Do not apply the macOS 0.1.0 limitations to Windows. Newer CLIs add commands not catalogued in this historical table; use installed `--help`. On Windows `--specified` is rejected, monitor depth uses 0–5, and preset/monitor commands reject global-only overrides such as metadata retention. See the Windows reference.
+1. **A flag** — check that the top-level `zipic --help` lists it (e.g. the text contains `max-size`). This works on every version and is the rule to use for any flag. Never probe with `zipic <command> --help`: before 0.5.1 that form errors without a file, and with a file it **runs the command**.
+2. **A behavior that help can't show** (strictness, `saved_pct` on non-success rows, launch wait) — read `zipic --version` and use the table.
 
-Flags marked "0.2.0" below require the newer CLI.
+| Since | Adds or changes | On an older CLI |
+| ----- | --------------- | --------------- |
+| 0.1.0 | First macOS CLI: `compress`, `preset`, `list`. | — |
+| 0.2.0 | `--no-overwrite`, `--no-progressive`, `--no-keep-hierarchy` and the explicit `--<flag>=true\|false` form; `--keep-hierarchy`, `--tiff-compression`, `--autocopy` take effect; `--suffix`/`--subfolder` imply their toggles; invalid values exit 64; `data.option` echo on real runs; `preset set-default`. | `--overwrite` has no off switch (`--no-overwrite` is unknown and swallows the next argument; `=false` is dropped) — keep sources with a separate `--output` directory. The three flags are accepted but dead. `preset set-default` returns `not_implemented`. |
+| 0.3.0 | `config` and `monitor` command families. Earliest CLI seen on Windows. | Commands absent. |
+| 0.4.0 | JXL lossless: `--jxl-lossless` / `--no-jxl-lossless`, `skip_reason` / `skip_detail`, `data.skipped_count`, `list --status skipped`. | Bare `--jxl-lossless` swallows the next argument; `--jxl-lossless=true` is ignored and yields a lossy JXL. `list --status skipped` exits 64. |
+| 0.5.0 | Max file size: `--max-size` / `--no-max-size`, `--keep-dimensions` / `--no-keep-dimensions`, `max_size_met`. | `--max-size 500KB` is dropped without an error (no cap applied); the bare booleans swallow the next argument. |
+| 0.5.1 | Strict flags: an unknown flag, a value flag without its value, or a value on a boolean-only flag (`--json=1`, `--off=false`) exits 64 naming the flag, and nothing reaches the app; `--dry-run` is accepted only by `compress` and `config import`. `--help`/`-h` anywhere after a command prints help and exits 0. `saved_pct` is real only on `success` rows, 0 elsewhere. GUI launch wait raised to 30 s. | Unknown flags pass silently and may swallow the next argument (`compress --lossless a.png b.jpg` processes only `b.jpg`, exit 0). `compress --help` exits 64 and `compress <file> --help` compresses the file. Windows `failed`/`skipped` rows report `output_bytes: 0, saved_pct: 100`. Launch wait is about 8 s — a cold start can exit 65 while the GUI still comes up; retry once. |
+
+A build may carry a flag before its version number moves (pre-release builds did), which is why flags are gated on help text rather than on the number. Do not apply the 0.1.0 limitations to Windows. Platform differences that are not version-related (`--specified`, monitor depth scale, global-only flags on preset/monitor) are in the Windows reference.
 
 macOS install path: `/usr/local/bin/zipic` (symlink into `Zipic.app/Contents/Resources/zipic`). Installed via Zipic menu bar → "Install zipic CLI" (one-time admin password prompt). Windows registers the execution alias during package installation; no separate CLI install menu applies.
 
@@ -30,8 +38,8 @@ zipic --help    | -h
 | ------------ | ------------------------------------------------------ |
 | `--json`     | Emit a single JSON line on stdout. Required for AI use. |
 | `--dry-run`  | (compress only) Return the resolved plan, no work done. |
-| `--version`  | Print CLI version (e.g. `zipic 0.2.0`) and exit.        |
-| `--help`     | Print built-in help and exit.                           |
+| `--version`  | Print CLI version (`zipic <x.y.z>`) and exit.        |
+| `--help`     | Print built-in help and exit. Use this top-level form to probe flags. |
 
 ## Exit codes
 
@@ -54,31 +62,31 @@ Positional args are files or directories. Directories are walked recursively for
 
 ### compress flags
 
-Every flag not given on the command line **inherits** from `--preset`, or, without it, from the GUI's currently *active* preset / current settings. There are no fixed CLI defaults. Boolean pairs also accept the explicit form `--<flag>=true|false` (0.2.0; on 0.1.0 the `=false` form is silently dropped — never rely on it there).
+Every flag not given on the command line **inherits** from `--preset`, or, without it, from the GUI's currently *active* preset / current settings. There are no fixed CLI defaults. Boolean pairs also accept the explicit form `--<flag>=true|false`. Older CLIs lack some flags below — see [Versions](#versions).
 
 | Flag                                              | Type                                       | Default          | Notes |
 | ------------------------------------------------- | ------------------------------------------ | ---------------- | ----- |
 | `--level <1-6>`                                   | int 1–6                                    | inherited        | 1 = best quality, 6 = smallest. |
 | `--format <value>`                                | `original\|jpeg\|png\|webp\|avif\|heic\|jxl` | inherited       | `avif` and `jxl` are Pro-only output formats; gated server-side. SVG is **not** an output value (SVG inputs stay SVG). |
-| `--width <px>`                                    | int                                        | 0 (auto)         | 0 = no resize on this axis. Invalid values exit 64 on 0.2.0 (silently ignored on 0.1.0). |
+| `--width <px>`                                    | int                                        | 0 (auto)         | 0 = no resize on this axis. Invalid values exit 64. |
 | `--height <px>`                                   | int                                        | 0 (auto)         | Same as `--width`. |
 | `--scale <1-99>`                                  | int                                        | —                | Percentage resize; overrides `--width`/`--height`. |
 | `--keep-aspect` / `--no-keep-aspect`              | bool                                       | keep             | Lock aspect ratio when one axis is set. |
 | `--preserve-metadata` / `--no-metadata`           | bool                                       | inherited        | EXIF/ICC retention. `--no-metadata` is Pro-only. |
-| `--progressive` / `--no-progressive`              | bool                                       | inherited        | Progressive JPEG. `--no-progressive` needs 0.2.0. |
+| `--progressive` / `--no-progressive`              | bool                                       | inherited        | Progressive JPEG. |
 | `--jxl-lossless` / `--no-jxl-lossless`            | bool                                       | inherited        | JPEG XL lossless mode; only acts when the output is JXL. **Probe `--help` first** — see [JXL lossless mode](#jxl-lossless-mode). |
 | `--max-size <size>` / `--no-max-size`             | size                                       | inherited        | Pro. Hard cap per output file; `--no-max-size` drops an inherited cap. **Probe `--help` first** — see [Max file size](#max-file-size). |
 | `--keep-dimensions` / `--no-keep-dimensions`      | bool                                       | allow scaling    | With a size cap: never scale down, only lower quality. |
-| `--tiff-compression <lzw\|zip>`                   | enum                                       | inherited        | TIFF output codec. **Dead on 0.1.0**; works on 0.2.0. |
+| `--tiff-compression <lzw\|zip>`                   | enum                                       | inherited        | TIFF output codec. |
 | `--location <original\|custom>`                   | enum                                       | inherited        | `original` = save next to input; `custom` = `--output`. Auto-set to `custom` if `--output` is given without explicit `--location`. |
 | `--output <dir>`                                  | path                                       | —                | Output directory. Forces `--location custom` when set. |
-| `--suffix <text>`                                 | string                                     | inherited        | Filename suffix. Implies `--add-suffix` on 0.2.0 (on 0.1.0 it silently does nothing when the inherited toggle is off). |
+| `--suffix <text>`                                 | string                                     | inherited        | Filename suffix. Implies `--add-suffix`. |
 | `--add-suffix` / `--no-suffix`                    | bool                                       | inherited        | Toggle suffix usage. |
-| `--subfolder <name>`                              | string                                     | inherited        | Output subfolder under destination. Implies `--add-subfolder` on 0.2.0. |
+| `--subfolder <name>`                              | string                                     | inherited        | Output subfolder under destination. Implies `--add-subfolder`. |
 | `--add-subfolder` / `--no-subfolder`              | bool                                       | inherited        | Toggle subfolder usage. |
-| `--keep-hierarchy` / `--no-keep-hierarchy`        | bool                                       | inherited        | Mirror the source directory tree under `--output`. **Dead on 0.1.0**; works on 0.2.0. |
-| `--overwrite` / `--no-overwrite`                  | bool                                       | inherited        | Replace-the-source on format conversion — see the contract below. `--no-overwrite` needs 0.2.0. |
-| `--autocopy <off\|path\|file\|markdown>`          | enum                                       | inherit GUI global | **Dead on 0.1.0.** On 0.2.0 an explicit value takes over from the GUI's per-file autocopy: `off` suppresses clipboard writes, the others write one aggregate entry after the run (`path` = newline-joined paths, `file` = file objects, `markdown` = `![](path)` lines). |
+| `--keep-hierarchy` / `--no-keep-hierarchy`        | bool                                       | inherited        | Mirror the source directory tree under `--output`. |
+| `--overwrite` / `--no-overwrite`                  | bool                                       | inherited        | Replace-the-source on format conversion — see the contract below. |
+| `--autocopy <off\|path\|file\|markdown>`          | enum                                       | inherit GUI global | An explicit value takes over from the GUI's per-file autocopy: `off` suppresses clipboard writes, the others write one aggregate entry after the run (`path` = newline-joined paths, `file` = file objects, `markdown` = `![](path)` lines). |
 | `--preset <name-or-id>`                           | string                                     | —                | Use a saved preset as base; explicit flags override its values. UUID match wins; falls back to name; "default" matches the seeded default preset regardless of locale. |
 | `--dry-run`                                       | bool                                       | off              | Returns `data.plan` without compressing. |
 
@@ -94,18 +102,17 @@ with overwrite in effect writes `photo.webp` and removes `photo.png`.
 Because the value is inherited from the user's active preset (GUI default is
 ON), an agent must never assume it is off. Safety rules:
 
-- User didn't ask to replace sources → pass `--no-overwrite` (0.2.0), or use
-  `--output <separate-dir>` — a different directory never triggers deletion and
-  is safe on every CLI version.
-- On CLI 0.1.0 there is **no reliable off switch** (`--no-overwrite` is unknown
-  there and swallows the next argument; `--overwrite=false` is silently
-  dropped) — use the `--output` route.
+- User didn't ask to replace sources → pass `--no-overwrite` when `zipic --help`
+  lists it, or use `--output <separate-dir>` — a different directory never
+  triggers deletion and is safe on every CLI version.
+- A CLI whose help lacks `--no-overwrite` has **no reliable off switch** — use
+  the `--output` route ([Versions](#versions)).
 - Verify with `--dry-run --json` → `data.plan.option.overwrite`; a real run
-  echoes the same via `data.option.overwrite` (0.2.0).
+  echoes the same via `data.option.overwrite`.
 
 ### JXL lossless mode
 
-Requires CLI 0.4.0; gate on `zipic --help` listing `--jxl-lossless`. On a CLI without it the flag is unknown: bare `--jxl-lossless` **swallows the next argument** (e.g. eats an input path), and `--jxl-lossless=true` is silently ignored, producing an ordinary lossy JXL. If the probe fails, tell the user lossless JXL needs a newer Zipic instead of guessing.
+Gate on `zipic --help` listing `--jxl-lossless`; passing it to a CLI without it loses an input path or silently yields a lossy JXL ([Versions](#versions)). If the probe fails, tell the user lossless JXL needs a newer Zipic instead of guessing.
 
 The value is inherited from the active preset like every other boolean, so pass `--no-jxl-lossless` when the user explicitly wants lossy JXL. It applies when the output is JXL (`--format jxl`, or `--format original` on a JXL source) and requires Pro like any JXL output. `--level` does not trade quality in this mode. Zipic routes each input by what it actually contains:
 
@@ -119,7 +126,7 @@ A skipped row is not a failure and not a success. Its `output` is the **source p
 
 ### Max file size
 
-Pro. Requires CLI 0.5.0; gate on `zipic --help` listing `--max-size`. On a macOS CLI without it the flags are unknown and nothing errors: `--max-size 500KB` is dropped silently (the run finishes with no cap applied), while bare `--keep-dimensions` / `--no-max-size` swallow the next argument. Windows CLI 0.5.1 instead rejects any unknown flag with exit 64. If the probe fails, tell the user a size cap needs a newer Zipic; don't emulate it by looping over `--level`.
+Pro. Gate on `zipic --help` listing `--max-size`; a CLI without it drops the cap without any error ([Versions](#versions)). If the probe fails, tell the user a size cap needs a newer Zipic; don't emulate it by looping over `--level`.
 
 **Value**: 1000-based like Finder — `500KB`, `1.5MB`, `2GB`, also `K`/`M`/`G`, case-insensitive, optional space (`"2 mb"`), decimals allowed; a bare number is bytes (`800000`). Range 1KB–10GB. `500KiB`, a bare `500` or `--max-size` together with `--no-max-size` exit 64 with a stderr-only message.
 
@@ -170,12 +177,12 @@ Success (after a real run):
         "output_bytes": 56789,
         "saved_pct": 54,
         "state": "success",          // or "kept_source" | "failed" | other
-        "max_size_met": true,        // 0.5.0, only when a size cap applied to this row
+        "max_size_met": true,        // only when a size cap applied to this row
         "started_at": "2026-05-08T10:00:00Z"
       }
     ],
     "completed_count": 1,
-    "skipped_count": 0,             // 0.4.0
+    "skipped_count": 0,
     "total_urls": 1,
     "option": { "level": 3, "output_format": "webp", "overwrite": false,
                 "add_suffix": true, "suffix": "-min", "...": "..." }
@@ -183,14 +190,23 @@ Success (after a real run):
 }
 ```
 
-`data.option` (0.2.0) echoes the fully resolved option the run actually used —
+`data.option` echoes the fully resolved option the run actually used —
 check `option.overwrite` to know whether a conversion deleted its sources.
 
 `state` values (inspect each result, not just top-level `isError`):
 - `success` — compressed, output file written. With a size cap, also read `max_size_met`: `false` means the file was written but is over the cap.
 - `kept_source` — compressed result was larger than the input, so the original was kept.
-- `skipped` — JXL lossless mode declined an already-lossy source; no output was written and the source is untouched. The row carries `skip_reason` (stable machine code: `lossy_jxl` \| `jpeg_reconstructed_jxl` \| `lossy_source`) and `skip_detail` (English explanation, not localized). `data.skipped_count` totals them.
+- `skipped` — nothing was written and the source is untouched. Two kinds, told apart by `skip_reason`:
+  - **with `skip_reason`** (`lossy_jxl` \| `jpeg_reconstructed_jxl` \| `lossy_source`, plus an English `skip_detail`): JXL lossless mode declined an already-lossy source. `data.skipped_count` totals these.
+  - **without `skip_reason`** (Windows): the file already carries Zipic's "optimized with these exact settings" mark and `--skip-optimized` (default on) left it alone. Not a failure, and the JXL remedy does not apply; pass `--no-skip-optimized` only if the user really wants a recompress. On macOS such a file produces **no row at all**.
 - `failed`, `cancelled`, `quota_exceeded` — incomplete or failed output; surface the result's `error` text when present. Do not label unknown states as success.
+
+Reading the totals:
+
+- **Report `saved_pct` only for `success` rows.** On other states the value is not meaningful ([Versions](#versions)).
+- `total_urls` counts the path arguments you passed, not files: one directory holding 24 images returns `completed_count: 24, total_urls: 1`. Never use it as a denominator.
+- **Empty `results` with exit 0 is not "done".** A path with nothing Zipic can process (empty directory, non-image file) returns `results: []` and no error, and so does an in-place macOS run whose files were all already optimized. Tell the user nothing was processed and why that may be; compare the rows you got against the files you expected.
+- The already-optimized mark is written on the **output** file, so that skip only shows up when overwriting in place (`--no-suffix --no-subfolder --location original`) or when a previous output is fed back in.
 
 Dry run:
 
@@ -222,11 +238,11 @@ zipic preset <subcommand> [args]
 | `delete <name-or-id>`                                   | Delete a custom preset (default cannot be deleted — returns `not_allowed`). |
 | `duplicate <name-or-id>`                                | Clone an existing preset.                       |
 | `set-favorite <name-or-id> [--off]`                     | Toggle favorite flag; `--off` forces unfavorite. |
-| `set-default <name-or-id>`                              | Select the *active* preset — the baseline a flag-less `compress` inherits. Does not move the seeded `is_default` badge. Returns `not_implemented` on Zipic 1.9.5 (CLI 0.1.0). |
+| `set-default <name-or-id>`                              | Select the *active* preset — the baseline a flag-less `compress` inherits. Does not move the seeded `is_default` badge. |
 | `import <file>`                                         | Import preset JSON; auto-renames on name collision (`<name> (Imported)`, `(Imported 2)`, …). |
 | `export <name-or-id> --output <file>`                   | Export to JSON.                                 |
 
-`create` accepts the same `--level/--format/--width/--height/--scale/--suffix/--subfolder/--output/--location/--max-size` flags as `compress`, plus the boolean pairs `--keep-aspect/--no-keep-aspect`, `--overwrite/--no-overwrite`, `--progressive/--no-progressive`, `--add-suffix/--no-suffix`, `--add-subfolder/--no-subfolder` (negative forms need 0.2.0), and `--jxl-lossless/--no-jxl-lossless`, `--keep-dimensions/--no-keep-dimensions` and `--no-max-size` where `--help` lists them (`monitor add/set` accept them too). They're baked into the preset; unspecified values inherit from the GUI's current settings. Current Windows rejects `--preserve-metadata/--no-metadata` here because metadata retention is global, not stored in presets; use it only on `compress` for a one-run override.
+`create` accepts the same `--level/--format/--width/--height/--scale/--suffix/--subfolder/--output/--location/--max-size` flags as `compress`, plus the boolean pairs `--keep-aspect/--no-keep-aspect`, `--overwrite/--no-overwrite`, `--progressive/--no-progressive`, `--add-suffix/--no-suffix`, `--add-subfolder/--no-subfolder`, and `--jxl-lossless/--no-jxl-lossless`, `--keep-dimensions/--no-keep-dimensions` and `--no-max-size` where `--help` lists them (`monitor add/set` accept them too). They're baked into the preset; unspecified values inherit from the GUI's current settings. Current Windows rejects `--preserve-metadata/--no-metadata` here because metadata retention is global, not stored in presets; use it only on `compress` for a one-run override.
 
 ### preset JSON response
 
@@ -260,7 +276,7 @@ zipic list clear
 | Flag             | Type | Default | Notes                                |
 | ---------------- | ---- | ------- | ------------------------------------ |
 | `--limit <N>`    | int  | 0 (all) | Cap the returned items.              |
-| `--status <v>`   | enum | `all`   | Filter by `success` / `failed` / `skipped` (`skipped` needs 0.4.0; older CLIs exit 64). |
+| `--status <v>`   | enum | `all`   | Filter by `success` / `failed` / `skipped` (`skipped`: see [Versions](#versions)). |
 
 `list` JSON:
 
@@ -291,7 +307,7 @@ Common `error.code` values:
 | `invalid_arguments` | Missing/invalid argument. Exit 64.                |
 | `not_found`         | Preset / file not found. Exit 1.                  |
 | `not_allowed`       | E.g. trying to delete the default preset. Exit 1. |
-| `not_implemented`   | E.g. `preset set-default` on Zipic 1.9.5 (CLI 0.1.0). Exit 1. |
+| `not_implemented`   | A command this CLI generation lacks, e.g. `preset set-default` on the first macOS CLI. Exit 1. |
 | `internal_error`    | Unexpected. Exit 1.                               |
 | `gui_not_running`   | Auto-launch failed. Exit 65.                      |
 | `io_error`          | Socket / IO problem. Exit 1.                      |
