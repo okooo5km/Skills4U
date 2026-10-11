@@ -5,6 +5,18 @@ All notable changes to the `zipic` skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 
+## [2.4.2] — 2026-10-11
+
+### Changed
+- zipic-cli 0.5.1 result rows, now the same on macOS and Windows: an already-optimized or 0-byte file returns a `skipped` row without `skip_reason` (macOS used to return no row), and rows that wrote nothing carry `output: ""` and `output_bytes: 0` (macOS used to repeat the source path on JXL-lossless skips).
+
+### Fixed
+- `data.skipped_count` was described as counting only rows with `skip_reason`; it totals every `skipped` row.
+- `completed_count` was described as "not a success count"; from zipic-cli 0.5.1 it counts successful primary outputs on both platforms.
+
+### Added
+- Already-optimized skips never enter `zipic list`; a file that is not a decodable image is `failed`, not `skipped`.
+
 ## [2.4.1] — 2026-10-11
 
 ### Changed

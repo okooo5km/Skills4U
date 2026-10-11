@@ -7,7 +7,7 @@ description: |
 license: MIT
 compatibility: macOS with Zipic.app >= 1.9.5 for CLI (>= 1.9.0 for SVG via URL Scheme), or Windows 10 build 19041+ / Windows 11 with packaged Zipic and its zipic.exe execution alias. Windows examples support PowerShell 5.1 and 7. No native Linux CLI; WSL requires Windows interop and Windows-accessible paths.
 metadata:
-  version: 2.4.1
+  version: 2.4.2
   author: 十里 & FRIDAY
   homepage: https://zipic.app
   changelog: ./CHANGELOG.md
@@ -33,7 +33,7 @@ Resolve `<skill-dir>` from this loaded skill's location; script paths are not re
 zipic compress --json [flags] <files-or-dirs>...
 ```
 
-`--json` is required — parse stdout separately from stderr. Capture the process exit code immediately (`$LASTEXITCODE` in PowerShell), then inspect `isError` and every `data.results[].state`; exit 0 alone does not prove every file succeeded. Report per-file `output_bytes`, errors, and `saved_pct` for `success` rows only (it is not meaningful on other states). An empty `results` with exit 0 means nothing was processed — say so instead of reporting success. Pass directories directly; Zipic walks them recursively.
+`--json` is required — parse stdout separately from stderr. Capture the process exit code immediately (`$LASTEXITCODE` in PowerShell), then inspect `isError` and every `data.results[].state`; exit 0 alone does not prove every file succeeded. Report per-file `output_bytes`, errors, and `saved_pct` for `success` rows only (it is not meaningful on other states). An empty `results` with exit 0 means nothing was processed — say so instead of reporting success; rows that are all `skipped` mean the same for those files. Pass directories directly; Zipic walks them recursively.
 
 | Need                       | Flag |
 | -------------------------- | ---- |

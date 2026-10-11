@@ -18,7 +18,7 @@ How to gate, in order:
 | 0.3.0 | `config` and `monitor` command families. Earliest CLI seen on Windows. | Commands absent. |
 | 0.4.0 | JXL lossless: `--jxl-lossless` / `--no-jxl-lossless`, `skip_reason` / `skip_detail`, `data.skipped_count`, `list --status skipped`. | Bare `--jxl-lossless` swallows the next argument; `--jxl-lossless=true` is ignored and yields a lossy JXL. `list --status skipped` exits 64. |
 | 0.5.0 | Max file size: `--max-size` / `--no-max-size`, `--keep-dimensions` / `--no-keep-dimensions`, `max_size_met`. | `--max-size 500KB` is dropped without an error (no cap applied); the bare booleans swallow the next argument. |
-| 0.5.1 | Strict flags: an unknown flag, a value flag without its value, or a value on a boolean-only flag (`--json=1`, `--off=false`) exits 64 naming the flag, and nothing reaches the app; `--dry-run` is accepted only by `compress` and `config import`. `--help`/`-h` anywhere after a command prints help and exits 0. `saved_pct` is real only on `success` rows, 0 elsewhere. GUI launch wait raised to 30 s. | Unknown flags pass silently and may swallow the next argument (`compress --lossless a.png b.jpg` processes only `b.jpg`, exit 0). `compress --help` exits 64 and `compress <file> --help` compresses the file. Windows `failed`/`skipped` rows report `output_bytes: 0, saved_pct: 100`. Launch wait is about 8 s — a cold start can exit 65 while the GUI still comes up; retry once. |
+| 0.5.1 | Strict flags: an unknown flag, a value flag without its value, or a value on a boolean-only flag (`--json=1`, `--off=false`) exits 64 naming the flag, and nothing reaches the app; `--dry-run` is accepted only by `compress` and `config import`. `--help`/`-h` anywhere after a command prints help and exits 0. `saved_pct` is real only on `success` rows, 0 elsewhere. Rows that wrote nothing (`failed`, both kinds of `skipped`) carry `output: ""` and `output_bytes: 0`. An already-optimized or 0-byte file returns a `skipped` row on both platforms (it never enters `zipic list`); a file that is not a decodable image returns `failed`. `completed_count` counts successful primary outputs only. GUI launch wait raised to 30 s. | Unknown flags pass silently and may swallow the next argument (`compress --lossless a.png b.jpg` processes only `b.jpg`, exit 0). `compress --help` exits 64 and `compress <file> --help` compresses the file. Windows `failed`/`skipped` rows report `output_bytes: 0, saved_pct: 100`. macOS puts the **source path** in `output` of a JXL-lossless `skipped` row and returns no row at all for an already-optimized file. Windows counts every primary row in `completed_count` and reports a corrupt PNG as `skipped`. Launch wait is about 8 s — a cold start can exit 65 while the GUI still comes up; retry once. |
 
 A build may carry a flag before its version number moves (pre-release builds did), which is why flags are gated on help text rather than on the number. Do not apply the 0.1.0 limitations to Windows. Platform differences that are not version-related (`--specified`, monitor depth scale, global-only flags on preset/monitor) are in the Windows reference.
 
@@ -50,7 +50,7 @@ zipic --help    | -h
 | 64   | usageError        | Invalid arguments (bad flag, wrong enum, missing required value). |
 | 65   | guiNotRunning     | Couldn't reach the Zipic GUI socket/pipe and auto-launch failed. |
 
-Capture stdout and stderr separately. Local argument errors may emit only stderr even with `--json`; capture the native exit code before attempting JSON parsing. A successful response can contain failed/cancelled/quota-exceeded rows; `completed_count` is not a success count.
+Capture stdout and stderr separately. Local argument errors may emit only stderr even with `--json`; capture the native exit code before attempting JSON parsing. A successful response can contain failed/cancelled/quota-exceeded rows; `completed_count` counts successful primary outputs only (`success` and `kept_source`); `failed`, `skipped` and extra-output rows are not in it. An older Windows CLI counts every primary row ([Versions](#versions)), so still read each row's `state`.
 
 ## Subcommand: `compress`
 
@@ -122,7 +122,7 @@ The value is inherited from the active preset like every other boolean, so pass 
 | JPEG | Reversible JPEG transcode — the original JPEG can be reconstructed byte-for-byte. With resizing, or a JPEG libjxl cannot transcode, it falls back to pixel-exact encoding of the decoded image. `--no-metadata` strips EXIF/XMP/comments first but keeps ICC and orientation. |
 | Lossy JXL, JPEG-reconstruction JXL, lossy WebP, HEIC, AVIF, JPEG-compressed TIFF | **Skipped**: no output written, source kept. Lossless can't recover lost detail and would only grow the file. |
 
-A skipped row is not a failure and not a success. Its `output` is the **source path itself** (nothing new was written), and it is excluded from `completed_count`. Report it with its `skip_reason`. If the user still wants those files as JXL, re-run **only the skipped inputs** with `--no-jxl-lossless` (lossy). Warn them first: re-encoding an already-lossy WebP/HEIC/AVIF to JXL often makes it **larger** and loses a little more quality. Don't re-run the whole batch. Lossless output is often larger than the lossy alternative and can exceed the source for already-tight PNGs; read `saved_pct`/`kept_source` rather than promising savings.
+A skipped row is not a failure and not a success. Nothing new was written: its `output` is `""` with `output_bytes: 0` (an older macOS CLI repeats the source path there, see [Versions](#versions)) — never treat the `output` of a non-success row as a produced file. Report it with its `skip_reason`. If the user still wants those files as JXL, re-run **only the skipped inputs** with `--no-jxl-lossless` (lossy). Warn them first: re-encoding an already-lossy WebP/HEIC/AVIF to JXL often makes it **larger** and loses a little more quality. Don't re-run the whole batch. Lossless output is often larger than the lossy alternative and can exceed the source for already-tight PNGs; read `saved_pct`/`kept_source` rather than promising savings.
 
 ### Max file size
 
@@ -197,15 +197,16 @@ check `option.overwrite` to know whether a conversion deleted its sources.
 - `success` — compressed, output file written. With a size cap, also read `max_size_met`: `false` means the file was written but is over the cap.
 - `kept_source` — compressed result was larger than the input, so the original was kept.
 - `skipped` — nothing was written and the source is untouched. Two kinds, told apart by `skip_reason`:
-  - **with `skip_reason`** (`lossy_jxl` \| `jpeg_reconstructed_jxl` \| `lossy_source`, plus an English `skip_detail`): JXL lossless mode declined an already-lossy source. `data.skipped_count` totals these.
-  - **without `skip_reason`** (Windows): the file already carries Zipic's "optimized with these exact settings" mark and `--skip-optimized` (default on) left it alone. Not a failure, and the JXL remedy does not apply; pass `--no-skip-optimized` only if the user really wants a recompress. On macOS such a file produces **no row at all**.
+  - **with `skip_reason`** (`lossy_jxl` \| `jpeg_reconstructed_jxl` \| `lossy_source`, plus an English `skip_detail`): JXL lossless mode declined an already-lossy source.
+  - **without `skip_reason`**: the file is empty (0 bytes) or already carries Zipic's "optimized with these exact settings" mark and `--skip-optimized` (default on) left it alone. Not a failure, and the JXL remedy does not apply; pass `--no-skip-optimized` only if the user really wants a recompress. An older macOS CLI produces **no row at all** for such a file ([Versions](#versions)).
+  - `data.skipped_count` totals both kinds. Only the first kind appears in `zipic list --status skipped`; an already-optimized skip exists only in the `compress` result.
 - `failed`, `cancelled`, `quota_exceeded` — incomplete or failed output; surface the result's `error` text when present. Do not label unknown states as success.
 
 Reading the totals:
 
 - **Report `saved_pct` only for `success` rows.** On other states the value is not meaningful ([Versions](#versions)).
 - `total_urls` counts the path arguments you passed, not files: one directory holding 24 images returns `completed_count: 24, total_urls: 1`. Never use it as a denominator.
-- **Empty `results` with exit 0 is not "done".** A path with nothing Zipic can process (empty directory, non-image file) returns `results: []` and no error, and so does an in-place macOS run whose files were all already optimized. Tell the user nothing was processed and why that may be; compare the rows you got against the files you expected.
+- **Empty `results` with exit 0 is not "done".** A path with nothing Zipic can process (empty directory, non-image file) returns `results: []` and no error, and so does an in-place run on an older macOS CLI whose files were all already optimized (current CLIs return `skipped` rows instead). Tell the user nothing was processed and why that may be; compare the rows you got against the files you expected.
 - The already-optimized mark is written on the **output** file, so that skip only shows up when overwriting in place (`--no-suffix --no-subfolder --location original`) or when a previous output is fed back in.
 
 Dry run:
