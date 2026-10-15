@@ -19,6 +19,7 @@ How to gate, in order:
 | 0.4.0 | JXL lossless: `--jxl-lossless` / `--no-jxl-lossless`, `skip_reason` / `skip_detail`, `data.skipped_count`, `list --status skipped`. | Bare `--jxl-lossless` swallows the next argument; `--jxl-lossless=true` is ignored and yields a lossy JXL. `list --status skipped` exits 64. |
 | 0.5.0 | Max file size: `--max-size` / `--no-max-size`, `--keep-dimensions` / `--no-keep-dimensions`, `max_size_met`. | `--max-size 500KB` is dropped without an error (no cap applied); the bare booleans swallow the next argument. |
 | 0.5.1 | Strict flags: an unknown flag, a value flag without its value, or a value on a boolean-only flag (`--json=1`, `--off=false`) exits 64 naming the flag, and nothing reaches the app; `--dry-run` is accepted only by `compress` and `config import`. `--help`/`-h` anywhere after a command prints help and exits 0. `saved_pct` is real only on `success` rows, 0 elsewhere. Rows that wrote nothing (`failed`, both kinds of `skipped`) carry `output: ""` and `output_bytes: 0`. An already-optimized or 0-byte file returns a `skipped` row on both platforms (it never enters `zipic list`); a file that is not a decodable image returns `failed`. `completed_count` counts successful primary outputs only. GUI launch wait raised to 30 s. | Unknown flags pass silently and may swallow the next argument (`compress --lossless a.png b.jpg` processes only `b.jpg`, exit 0). `compress --help` exits 64 and `compress <file> --help` compresses the file. Windows `failed`/`skipped` rows report `output_bytes: 0, saved_pct: 100`. macOS puts the **source path** in `output` of a JXL-lossless `skipped` row and returns no row at all for an already-optimized file. Windows counts every primary row in `completed_count`, reports a corrupt PNG as `skipped`, and can copy a corrupt or 0-byte file into the output directory unchanged — on that CLI a file existing at the output path does not prove it was compressed. Launch wait is about 8 s — a cold start can exit 65 while the GUI still comes up; retry once. |
+| 0.6.0 | PDF → images: `--pdf-to-image` / `--no-pdf-to-image`, `--pdf-dpi 72\|150\|300`, per-page result rows (`page`, `page_count`), dry-run `plan.pdf_pages`, `config` keys `PDF-Rasterize-Enabled` / `PDF-Rasterize-DPI`. PDF **input** is Pro: a free user's PDF returns `pro_required` (`blocked_format: "PDF"`, `direction: "input"`). | No way to rasterize PDF pages: a PDF is always compressed as a PDF, whatever `--format` says, and the flags are unknown (exit 64 on a 0.5.1 CLI). A free user's PDF was compressed without a gate. Not on Windows yet — gate on help. |
 
 The CLI ships inside the app and has no upgrade path of its own: when a gate fails, or `zipic --version` is behind the last row, the fix is to update Zipic — on macOS through the app's update check or a fresh download from https://zipic.app (the `/usr/local/bin/zipic` symlink follows the app, no reinstall), on Windows through the Microsoft Store. Say that instead of working around a missing flag.
 
@@ -79,6 +80,8 @@ Every flag not given on the command line **inherits** from `--preset`, or, witho
 | `--jxl-lossless` / `--no-jxl-lossless`            | bool                                       | inherited        | JPEG XL lossless mode; only acts when the output is JXL. **Probe `--help` first** — see [JXL lossless mode](#jxl-lossless-mode). |
 | `--max-size <size>` / `--no-max-size`             | size                                       | inherited        | Pro. Hard cap per output file; `--no-max-size` drops an inherited cap. **Probe `--help` first** — see [Max file size](#max-file-size). |
 | `--keep-dimensions` / `--no-keep-dimensions`      | bool                                       | allow scaling    | With a size cap: never scale down, only lower quality. |
+| `--pdf-to-image` / `--no-pdf-to-image`            | bool                                       | GUI setting      | Pro. Turn each PDF page into an image in the `--format` target. **Probe `--help` first** — see [PDF to images](#pdf-to-images). |
+| `--pdf-dpi <72\|150\|300>`                        | enum                                       | GUI setting (150) | Pro. Render resolution for PDF pages. |
 | `--tiff-compression <lzw\|zip>`                   | enum                                       | inherited        | TIFF output codec. |
 | `--location <original\|custom>`                   | enum                                       | inherited        | `original` = save next to input; `custom` = `--output`. Auto-set to `custom` if `--output` is given without explicit `--location`. |
 | `--output <dir>`                                  | path                                       | —                | Output directory. Forces `--location custom` when set. |
@@ -140,7 +143,7 @@ Pro. Gate on `zipic --help` listing `--max-size`; a CLI without it drops the cap
 
 An explicit `--width`/`--height`/`--scale`/`--longest-side` is applied first; the cap then works on the resized image. Combining a resize with the cap is the predictable way to hit a small budget at a known size. PNG has little quality range, so a tight PNG cap reaches for scaling early (observed: a 2400×1600 PNG capped at 500KB came back 1007×671); prefer `--format webp`/`jpeg` or a looser cap when dimensions matter.
 
-**Ignored** (no cap, no `max_size_met`): TIFF, PDF and SVG output, ICNS (macOS) / ICO (Windows), and JXL lossless mode.
+**Ignored** (no cap, no `max_size_met`): TIFF, PDF and SVG output, ICNS (macOS) / ICO (Windows), and JXL lossless mode. Pages from [PDF to images](#pdf-to-images) are ordinary image outputs, so the cap applies to each page.
 
 **Result contract** — the cap never fails a file:
 
@@ -157,6 +160,52 @@ zipic compress --json --format webp --max-size 500KB --no-overwrite --output /tm
 
 # Must keep pixel dimensions: quality only, may miss the cap
 zipic compress --json --max-size 200KB --keep-dimensions --no-overwrite --output /tmp/out/ /path/photo.jpg
+```
+
+### PDF to images
+
+Pro. Gate on `zipic --help` listing `--pdf-to-image`. Without it, Zipic only compresses PDFs as PDFs ([Versions](#versions)). If the probe fails, tell the user page export needs a newer Zipic.
+
+**When it applies:** all three of these must hold:
+- conversion is on, through `--pdf-to-image` or the GUI setting `PDF-Rasterize-Enabled`;
+- the input is a PDF;
+- the effective `--format` is not `original`.
+
+Otherwise the PDF is compressed as a PDF, as before. An explicit `--pdf-to-image` with `--format original` (given or inherited) returns `invalid_arguments` (exit 64). `--no-pdf-to-image` forces PDF compression for one run.
+
+**Output.** Each page is rendered from the vector source at `--pdf-dpi`; an A4 page is 1240×1754 at the default 150 DPI. The page then goes through the normal pipeline, so `--level`, `--max-size` and `--suffix` (including `{width}`-style tokens) apply per page.
+- An absolute resize (`--width` / `--height` / `--longest-side`) renders straight at that size, sharp, and may exceed the DPI size.
+- `--scale` scales the DPI size.
+- File names: `<name>-p01.<ext>` … `<name>-pNN.<ext>`, zero-padded to at least two digits. A single-page PDF gets `<name>.<ext>` with no page number. The suffix goes after the page number: `report-p01-min.webp`.
+- The source PDF is never modified or deleted, whatever `--overwrite` says.
+
+**All-or-nothing.** If any page fails, or the run is cancelled, no page is written and the PDF returns one `failed` row whose `error` starts with the page number. A password-protected PDF fails this way; an empty-password one converts. Zipic also refuses to overwrite a file it did not create: if a page's target name is already taken by such a file (say, the user's own `report.png` next to `report.pdf`), the row fails and nothing is written. Pages from an earlier Zipic run are replaced.
+
+**Rows.** A converted PDF returns **one row per page**:
+- `input` is the PDF, `output` / `file_name` is the page.
+- `input_bytes` is the whole PDF and `output_bytes` the page, so `saved_pct` is always 0. Report the page count and sizes, not a saving.
+- `page` (1-based) and `page_count` are added; `max_size_met` appears only under a cap.
+- Every row's `id` is `<id>#p<N>`.
+- `completed_count` counts the PDF once.
+- `zipic list` shows the same page rows, and leaves them out of `storage_saved_bytes`.
+- `--autocopy` copies every page.
+
+**Dry run.** `--dry-run` adds `data.plan.pdf_pages: {"/p/report.pdf": 12}`, but only for PDFs that would be converted. Use it to warn before a large export.
+
+**Persistent default.** `config` keys `PDF-Rasterize-Enabled` (bool) and `PDF-Rasterize-DPI` (72/150/300). Change them only when the user asks. They are global settings, not preset fields: `preset create|update` and `monitor add|set` reject the two flags with exit 64.
+
+**Pro.** An explicit `--pdf-to-image` or `--pdf-dpi` from a free user returns `pro_required` (`feature: "pdf_to_image"` / `"pdf_dpi"`). Before that, the PDF input gate already blocks any PDF for free users.
+
+```bash
+# Export every page as WebP at 300 DPI into a separate folder
+zipic compress --json --pdf-to-image --format webp --pdf-dpi 300 --no-overwrite --output /tmp/pages/ /path/report.pdf
+```
+
+```json
+{ "id": "UUID#p2", "input": "/path/report.pdf", "output": "/tmp/pages/report-p02.webp",
+  "file_name": "report-p02.webp", "input_bytes": 2100000, "output_bytes": 281000,
+  "saved_pct": 0, "state": "success", "variant_index": 0, "page": 2, "page_count": 12,
+  "started_at": "2026-10-16T10:00:00Z" }
 ```
 
 ### compress JSON response
@@ -337,7 +386,8 @@ Common `error.code` values:
 
 Triggers:
 - `--format avif` or `--format jxl` while not activated → `direction: "output"`.
-- Input file is SVG / APNG / animated PNG / AVIF / TIFF / ICNS / JXL while not activated → `direction: "input"`.
+- Input file is SVG / APNG / animated PNG / AVIF / TIFF / ICNS / JXL / PDF while not activated → `direction: "input"` (PDF gated from CLI 0.6.0, see [Versions](#versions)).
+- Explicit `--pdf-to-image` / `--pdf-dpi` while not activated → `feature: "pdf_to_image"` / `"pdf_dpi"`.
 - Free-tier daily quota exceeded → `remaining` / `requested` populated.
 - `preset create` while user already has 1 custom preset → quota-style payload.
 - Explicit `--max-size` on `compress` / `preset create` / `preset update` while not activated → `blocked_option: "max-size"`, `feature: "max_file_size"`.
@@ -350,6 +400,7 @@ Triggers:
 | Exit code / `isError`                   | ✅  | ❌         |
 | Dry run                                 | ✅  | ❌         |
 | Size cap with `max_size_met` per file   | ✅  | cap only, no result (macOS) |
+| PDF pages to images, per-page rows      | ✅  | export only, no result (macOS) |
 | Presets (list/show/create/delete/...)   | ✅  | ❌         |
 | Compression history (`list`)            | ✅  | ❌         |
 | Pro gate as structured error            | ✅  | (silent / GUI alert) |

@@ -2,12 +2,12 @@
 name: zipic
 description: |
   Local image compression and Zipic-app expert for macOS and native Windows. Uses the Zipic CLI with JSON results, per-file saved_pct and exit codes; URL Scheme is a limited fallback.
-  Use for compressing, optimizing or shrinking images, batch compression, conversion to WebP/AVIF/HEIC/JXL (including lossless JPEG XL), hitting a target file size ("under 500 KB", "max 2 MB"), SVG optimization, resizing, presets and compression history. Also use for Zipic pricing, Pro features, activation, free-tier limits, troubleshooting, comparisons, CLI setup and workflow integration.
+  Use for compressing, optimizing or shrinking images, batch compression, conversion to WebP/AVIF/HEIC/JXL (including lossless JPEG XL), exporting PDF pages as images, hitting a target file size ("under 500 KB", "max 2 MB"), SVG optimization, resizing, presets and compression history. Also use for Zipic pricing, Pro features, activation, free-tier limits, troubleshooting, comparisons, CLI setup and workflow integration.
   Requires the installed Zipic GUI in the same execution environment. Windows uses the packaged zipic.exe alias and PowerShell; macOS uses Zipic.app. Format support and integrations differ by platform.
 license: MIT
 compatibility: macOS with Zipic.app >= 1.9.5 for CLI (>= 1.9.0 for SVG via URL Scheme), or Windows 10 build 19041+ / Windows 11 with packaged Zipic and its zipic.exe execution alias. Windows examples support PowerShell 5.1 and 7. No native Linux CLI; WSL requires Windows interop and Windows-accessible paths.
 metadata:
-  version: 2.4.3
+  version: 2.5.0
   author: 十里 & FRIDAY
   homepage: https://zipic.app
   changelog: ./CHANGELOG.md
@@ -47,6 +47,7 @@ zipic compress --json [flags] <files-or-dirs>...
 | Preview without running    | `--dry-run` |
 | Lossless JPEG XL           | `--format jxl --jxl-lossless` (gated) |
 | Cap output file size       | `--max-size 500KB` (Pro; gated) |
+| PDF pages to images        | `--pdf-to-image --format webp` (Pro; gated; one row per page) |
 
 **Gated flags**: before passing one, confirm the top-level `zipic --help` lists it. Older CLIs accept unknown flags silently — the flag is dropped or swallows the next argument, and the run still exits 0. Probe only with `zipic --help`, never `zipic compress --help` (on older CLIs that can run the compression). Which version added what lives in one place: `reference/cli.md` → Versions.
 
@@ -94,6 +95,7 @@ On macOS, use only when `route` is `install_cli` or `url_scheme`; on Windows, re
 
 ## SVG and presets quick notes
 
+- **PDF** (Pro): a PDF is compressed as a PDF by default. `--pdf-to-image` with a target `--format` exports every page instead (`report-p01.webp`…, single page `report.webp`), all-or-nothing, one result row per page with `saved_pct` 0 — report page count and sizes, not savings. Use `--dry-run` first for `data.plan.pdf_pages` on big PDFs. Details: `reference/cli.md` → PDF to images.
 - **SVG optimization** (Pro; macOS Zipic ≥ 1.9.0, also supported on Windows): pass `.svg` files like any other input. Output stays SVG — never set `--format` on SVG. Level 1–2 conservative, 3–4 balanced, 5–6 may simplify paths visibly.
 - **Presets** (CLI only): `zipic preset list --json`, `zipic preset show "<name>" --json`, `zipic preset create --name "Web 2x" --level 3 --format webp --width 2400`. `zipic preset set-default "<name>"` selects the active preset — the baseline a flag-less `compress` inherits. Free users may keep at most 1 custom preset.
 - **History** (CLI only): `zipic list --json --limit 20` / `zipic list clear`.

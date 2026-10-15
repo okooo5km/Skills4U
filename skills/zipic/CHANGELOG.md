@@ -5,6 +5,17 @@ All notable changes to the `zipic` skill are documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 Versioning follows [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
 
+## [2.5.0] — 2026-10-16
+
+### Added
+- zipic-cli 0.6.0 PDF → images: `--pdf-to-image` / `--no-pdf-to-image` and `--pdf-dpi 72|150|300`. When to use them, page naming (`-p01`, single page bare, suffix after the page number), all-or-nothing behaviour, the refusal to overwrite files Zipic didn't create, per-page result rows (`page`, `page_count`, `saved_pct` 0, `id` `#pN`, `completed_count` once per PDF), dry-run `plan.pdf_pages`, the `PDF-Rasterize-Enabled` / `PDF-Rasterize-DPI` config keys, and the ghost-flag rejection on preset/monitor. All in `reference/cli.md` → PDF to images.
+- URL Scheme `pdfToImage` / `pdfDpi` (macOS).
+- A 0.6.0 row in the Versions table. PDF input is Pro from this version (`pro_required`, `blocked_format: "PDF"`).
+
+### Notes
+- Windows does not ship this yet; the skill gates it on `--help` listing `pdf-to-image`, per the one-contract-per-version rule.
+- Written against Zipic main 5f8aab0..f75278b (help text, AGENTS.md and `scripts/test-cli-pdf-to-image.sh`), before the macOS release.
+
 ## [2.4.3] — 2026-10-12
 
 ### Added

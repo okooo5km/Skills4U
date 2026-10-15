@@ -48,7 +48,7 @@ Windows accepts output formats `original/jpeg/png/webp/avif/heic/jxl`; do not co
 | `url`          | path string (repeatable)                                     | —       | File or folder. URL-encode (`%20` for spaces, percent-encode CJK). At least one `url` or `data` required. |
 | `data`         | URL-encoded JSON: `{"urls":["/p/a.png","/p/b.jpg"]}`         | —       | Alternative to repeated `url=`. Each entry must be an existing file/dir; non-image files and app bundles are silently skipped. |
 | `level`        | int 1–6                                                      | current setting | Compression level. |
-| `format`       | `jpeg\|png\|webp\|heic\|avif\|gif\|tiff\|icns\|pdf\|jxl`     | keep original | Output format. **Not** a valid value: `svg` — SVG inputs are optimized in-place and stay SVG. AVIF/JXL require Pro. |
+| `format`       | `jpeg\|png\|webp\|heic\|avif\|gif\|tiff\|icns\|pdf\|jxl`     | keep original | Output format. **Not** a valid value: `svg` — SVG inputs are optimized in-place and stay SVG. AVIF/JXL require Pro. A PDF input stays a PDF unless `pdfToImage` is on. |
 | `width`        | int (pixels)                                                 | 0 (auto) |  |
 | `height`       | int (pixels)                                                 | 0 (auto) |  |
 | `ratio`        | macOS: bool (`true`/`false`); Windows: int 1–99                | platform-dependent | macOS: keep aspect ratio; Windows: percentage scaling. |
@@ -64,6 +64,8 @@ Windows accepts output formats `original/jpeg/png/webp/avif/heic/jxl`; do not co
 | `jxlLossless`  | bool                                                         | inherited | JPEG XL lossless mode (newer builds; `jxl-lossless` also accepted). Lossy sources are skipped and kept, with no result reported back — prefer the CLI to see `skip_reason`. |
 | `maxSize`      | size: `500KB`, `1.5MB`, bytes; `0`/`none`/`off` clears       | inherited | macOS, Pro, builds whose `zipic --help` lists `max-size` (`max-size` also accepted here). Hard cap per output file; invalid values are ignored. Nothing reports whether the cap was met — prefer the CLI's `max_size_met`. Not verified for the Windows scheme. |
 | `keepDimensions` | bool                                                       | false   | macOS. With `maxSize`: never scale down, only lower quality (`keep-dimensions` also accepted). |
+| `pdfToImage`   | bool                                                         | GUI setting | macOS, Pro, builds whose `zipic --help` lists `pdf-to-image` (`pdf-to-image` also accepted). Turns each PDF page into an image in `format` (needs a `format` other than original); pages are named `<name>-p01…`. Nothing reports the page files — prefer the CLI's per-page rows. |
+| `pdfDpi`       | `72\|150\|300`                                               | GUI setting (150) | macOS, Pro. Page render resolution (`pdf-dpi` also accepted); other values are ignored. |
 
 Anything Zipic doesn't recognize is ignored. Bool values must be the literals `true` or `false`.
 
