@@ -5,8 +5,8 @@ metadata:
   version: "0.7.8"
   updated: "2026-10-06"
   tested_with:
-    orchard_app: "0.6.4 (19)"
-    orchard_cli: "0.6.4"
+    orchard_app: "0.6.5 (20)"
+    orchard_cli: "0.6.5"
 ---
 
 # Orchard
